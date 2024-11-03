@@ -67,3 +67,7 @@ node_modules/
 
 # dataconnect generated files
 .dataconnect
+backend/mergeFiles.js
+backend/output.js
+frontend/src/mergeFilesFtd.js
+frontend/src/output.js
