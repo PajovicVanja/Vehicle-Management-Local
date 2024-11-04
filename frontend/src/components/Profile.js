@@ -1,6 +1,6 @@
 // components/Profile.js
 import React, { useState, useEffect } from 'react';
-import '../CSS/globalCss.css';
+import '../CSS/Profile.css';
 import { getUserData } from '../services/authService';
 
 function Profile({ token, setShowProfile }) {
