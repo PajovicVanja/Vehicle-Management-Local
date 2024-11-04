@@ -20,7 +20,7 @@ function App() {
           ) : (
             <Login setToken={setToken} />
           )}
-          <button onClick={() => setIsRegistering(!isRegistering)}>
+          <button className="goto-register-button" onClick={() => setIsRegistering(!isRegistering)}>
             {isRegistering ? 'Switch to Login' : 'Switch to Register'}
           </button>
         </>
@@ -28,8 +28,8 @@ function App() {
         <Profile token={token} setShowProfile={setShowProfile} />
       ) : (
         <div>
-          <button onClick={() => setShowProfile(true)}>View Profile</button>
           <UploadLicense token={token} />
+          <button onClick={() => setShowProfile(true)} className='goto-register-button'>View Profile</button>
         </div>
       )}
     </div>

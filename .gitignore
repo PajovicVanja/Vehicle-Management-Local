@@ -72,3 +72,4 @@ backend/output.js
 frontend/src/mergeFilesFtd.js
 frontend/src/output.js
 backend/config/serviceAccountKey.json
+env

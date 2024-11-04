@@ -1,5 +1,6 @@
 // components/UploadLicense.js
 import React, { useState } from 'react';
+import '../CSS/UploadLicense.css';
 import { uploadLicense } from '../services/authService';
 
 function UploadLicense({ token }) {
@@ -25,13 +26,13 @@ function UploadLicense({ token }) {
   };
 
   return (
-    <div>
+    <div className="upload-container">
       <h2>Upload Driver's License</h2>
-      <form onSubmit={handleUpload}>
-        <input type="file" onChange={handleFileChange} />
-        <button type="submit">Upload</button>
+      <form onSubmit={handleUpload} className="upload-form">
+        <input type="file" onChange={handleFileChange} className="file-input"/>
+        <button type="submit" className="upload-button">Upload</button>
       </form>
-      {message && <p>{message}</p>}
+      {message && <p className="upload-message">{message}</p>}
     </div>
   );
 }

@@ -1,5 +1,6 @@
 // components/Profile.js
 import React, { useState, useEffect } from 'react';
+import '../CSS/globalCss.css';
 import { getUserData } from '../services/authService';
 
 function Profile({ token, setShowProfile }) {
@@ -21,19 +22,19 @@ function Profile({ token, setShowProfile }) {
   }, [token]);
 
   return (
-    <div>
+    <div className="profile-container">
       <h2>Profile</h2>
-      <p>Email: {email}</p>
+      <p className="profile-email">Email: {email}</p>
       {licenseImageUrl ? (
         <div>
           <h3>Your Driver’s License</h3>
-          <img src={licenseImageUrl} alt="Driver's License" style={{ width: '200px' }} />
+          <img src={licenseImageUrl} alt="Driver's License" className="license-image" />
         </div>
       ) : (
-        <p>No driver's license uploaded yet.</p>
+        <p className="no-license">No driver's license uploaded yet.</p>
       )}
-      <button onClick={() => setShowProfile(false)}>Back to Dashboard</button>
-      {message && <p>{message}</p>}
+      <button onClick={() => setShowProfile(false)} className='goto-register-button'>Back to Dashboard</button>
+      {message && <p className="profile-message">{message}</p>}
     </div>
   );
 }
