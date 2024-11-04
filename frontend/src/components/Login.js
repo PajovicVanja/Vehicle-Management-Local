@@ -1,5 +1,6 @@
 // components/Login.js
 import React, { useState } from 'react';
+import '../CSS/LoginRegister.css';
 import { auth, signInWithEmailAndPassword } from '../firebaseClient';
 
 function Login({ setToken }) {
@@ -21,7 +22,7 @@ function Login({ setToken }) {
   };
 
   return (
-    <div>
+    <div className="login-container">
       <h2>Login</h2>
       <form onSubmit={handleLogin}>
         <input
@@ -29,16 +30,18 @@ function Login({ setToken }) {
           placeholder="Email"
           value={email}
           onChange={(e) => setEmail(e.target.value)}
+          className="login-input"
         />
         <input
           type="password"
           placeholder="Password"
           value={password}
           onChange={(e) => setPassword(e.target.value)}
+          className="login-input"
         />
-        <button type="submit">Login</button>
+        <button type="submit" className="login-button">Login</button>
       </form>
-      {error && <p style={{ color: 'red' }}>{error}</p>}
+      {error && <p className="error-message">{error}</p>}
     </div>
   );
 }

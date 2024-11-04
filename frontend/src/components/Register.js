@@ -1,5 +1,6 @@
 // components/Register.js
 import React, { useState } from 'react';
+import '../CSS/LoginRegister.css';
 import { auth, createUserWithEmailAndPassword } from '../firebaseClient';
 import { db } from '../firebaseClient'; // Import Firestore
 import { doc, setDoc } from 'firebase/firestore'; // Firestore functions for creating a document
@@ -33,7 +34,7 @@ function Register({ setToken }) {
   };
 
   return (
-    <div>
+    <div className="login-container">
       <h2>Register</h2>
       <form onSubmit={handleRegister}>
         <input
@@ -41,16 +42,18 @@ function Register({ setToken }) {
           placeholder="Email"
           value={email}
           onChange={(e) => setEmail(e.target.value)}
+          className="login-input"
         />
         <input
           type="password"
           placeholder="Password"
           value={password}
           onChange={(e) => setPassword(e.target.value)}
+          className="login-input"
         />
-        <button type="submit">Register</button>
+        <button type="submit" className="login-button">Register</button>
       </form>
-      {error && <p style={{ color: 'red' }}>{error}</p>}
+      {error && <p  className="error-message">{error}</p>}
     </div>
   );
 }
