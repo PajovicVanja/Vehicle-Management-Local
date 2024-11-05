@@ -7,6 +7,7 @@ import { db, collection, doc, setDoc  } from '../firebaseClient'; // Import Fire
 function AddVehicle({ token, setShowAddVehicle }) {
   const [vehicleName, setVehicleName] = useState('');
   const [hp, setHp] = useState('');
+  const [engine, setEngine] = useState('');
   const [color, setColor] = useState('');
   const [year, setYear] = useState('');
   const [image, setImage] = useState(null);
@@ -18,16 +19,18 @@ function AddVehicle({ token, setShowAddVehicle }) {
       // Generate a unique document reference with a new ID
       const vehicleRef = doc(collection(db, 'vehicles'));
       const vehicleId = vehicleRef.id;
+      const status = 'available';
 
       // Create a new vehicle object including the vehicleId
       const newVehicle = {
         vehicleId,           // Add the unique ID to the vehicle data
         vehicleName,
+        engine,
         hp,
         color,
         year,
         image,
-        status: 'available',
+        status,
       };
 
     try {
@@ -66,6 +69,13 @@ function AddVehicle({ token, setShowAddVehicle }) {
           placeholder="Vehicle Year"
           value={year}
           onChange={(e) => setYear(e.target.value)}
+          className="add-vehicle-input"
+        />
+        <input
+          type="engine"
+          placeholder="Engine"
+          value={engine}
+          onChange={(e) => setEngine(e.target.value)}
           className="add-vehicle-input"
         />
         <input

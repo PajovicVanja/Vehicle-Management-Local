@@ -7,4 +7,6 @@ async function getVehicles(uid) {
   return docSnap.exists() ? docSnap.data() : null;
 }
 
-module.exports = { getVehicles };
+module.exports = { 
+  getVehicles,
+};
