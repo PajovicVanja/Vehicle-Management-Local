@@ -1,0 +1,13 @@
+.menu-group{
+  display: flex;
+  flex-direction: column;
+  justify-content: center; /* Centers buttons horizontally */
+  align-items: center; /* Centers buttons vertically */
+}
+
+.button-group {
+    display: flex;
+    justify-content: center; /* Centers buttons horizontally */
+    align-items: center; /* Centers buttons vertically */
+    gap: 10px;
+  }
