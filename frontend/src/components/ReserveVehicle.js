@@ -1,27 +1,62 @@
 // components/ReserveVehicle.js
 import React, { useState, useEffect } from 'react';
 import { getUserData } from '../services/authService';
-import { getVehicleData, deleteVehicle, repairVehicle } from '../services/vehicleService';
+import { getVehicleData, deleteVehicle, repairVehicle, unreserveVehicle } from '../services/vehicleService';
+import { getReservation, getReservationData, deleteReservation } from '../services/reservationService';
 import ReserveVehicleForm from '../components/ReserveVehicleForm';
+import { getAuth } from 'firebase/auth'; // Import Firebase Authentication
 
-function Reserve({ token, setShowReserve, setShowAddVehicle }) {
+function Reserve({ token, setShowReserve, setShowAddVehicle, setShowAllCarReservations }) {
   const [message, setMessage] = useState('');
   const [vehicles, setVehicles] = useState([]); 
+  const [reservations, setReservations] = useState([]); 
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [viewVehicle,setViewVehicle] = useState(null);
   const [reserveVehicleId,setReserveVehicleId] = useState(null);
   const [role, setRole] = useState('');
+  const [uid, setUid] = useState(null);
+  const [userReservation, setUserReservation] = useState(null);
+  //const [load1,setLoad1] = useState(false);
+  //const [load2,setLoad2] = useState(false);
 
   useEffect(() => {
     const fetchData = async () => {
+      setLoading(true); // Start loading
       const userData = await getUserData(token);
+      
       if (userData.success) {
         setRole(userData.data.role || 'Driver');
+
+        // Get the authenticated user's UID
+        const auth = getAuth();
+        const user = auth.currentUser;
+        user ? setUid(user.uid) : setUid(null);
+        await fetchVehicles();
       }
     };
     fetchData();
   }, [token]);
+
+  useEffect(() => {
+    // Fetch user reservation only after `reservations` and `uid` have been set
+    if (reservations.length > 0 && uid) {
+      const userRes = reservations.find(res => res.userId === uid);
+      setUserReservation(userRes);
+      //console.log('User reservation:', userRes);
+    }
+  }, [reservations, uid]);
+
+  /*useEffect(() => {
+    console.log('fetch reservations load1');
+    fetchAllReservations();
+    setLoad2(true);
+  }, [load1]);
+
+  useEffect(() => {
+    console.log('fetch vehicles load2');
+    fetchVehicles();
+  }, [load2]);*/
 
   const canAddVehicle = role === 'Admin';
   const canRepairVehicle = role === 'Admin';
@@ -33,8 +68,9 @@ function Reserve({ token, setShowReserve, setShowAddVehicle }) {
     setLoading(true); // Start loading
     try {
       const vehicleSnapshot = await getVehicleData(token);
-      console.log(vehicleSnapshot.data);
+      //console.log(vehicleSnapshot.data);
       if (vehicleSnapshot.success) {
+        await fetchAllReservations();
         setVehicles(vehicleSnapshot.data);
       } else {
         setMessage(vehicleSnapshot.error || 'Failed to load vehicle data');
@@ -46,14 +82,69 @@ function Reserve({ token, setShowReserve, setShowAddVehicle }) {
       setLoading(false); // Stop loading
     }
   };
+  
+  const fetchAllReservations = async () => {
+    setLoading(true); // Start loading
+    try {
+      const vehicleSnapshot = await getReservationData(token);
+      //console.log(vehicleSnapshot.data);
+      if (vehicleSnapshot.success) {
+        setReservations(vehicleSnapshot.data);
+      } else {
+        setMessage(vehicleSnapshot.error || 'Failed to load vehicle data');
+      }
+    } catch (error) {
+      console.log(error);
+      setError(error);
+    } finally {
+      setLoading(false); // Stop loading
+    }
+  };
 
-  useEffect(() => {
-    fetchVehicles();
-  }, [token]);
+  const fetchUserReservation = () => {
+    setUserReservation(reservations.find(res => res.userId === uid));
+  }
+  
+  const fetchReservation = async (resId) => {
+    try {
+      const resSnapshot = await getReservation(resId, token);
+      if (resSnapshot.success) {
+        return(resSnapshot.data);
+      } else {
+        setMessage(resSnapshot.error || 'Failed to load reservation data.');
+      }
+    } catch (error) {
+      console.log(error);
+      setError(error);
+    }
+  };
 
   const handleReserve = (vehicleId) => {
     setReserveVehicleId(vehicleId);
   };
+
+  async function removeReserve(vehicle){
+    var result = await unreserveVehicle(vehicle.vehicleId, token);
+    if (result.success) {
+      console.log(`Vehicle ${vehicle.vehicleId} status now available.`);
+      const reservation = reservations.find(res => res.reservationId === vehicle.status);
+      console.log('Found reservation: ', reservation.reservationId);
+      result = await deleteReservation(reservation.reservationId, token);
+      if (result.success) {
+        console.log(`Removed ${reservation.reservationId} reservation.`);
+
+        // refresh the list of vehicles here
+        fetchVehicles();
+      } else {
+        console.error(`Failed to remove reservation: ${reservation.reservationId}`);
+      }
+
+      // refresh the list of vehicles here
+      fetchVehicles();
+    } else {
+      console.error(`Failed to update vehicle status for ID: ${vehicle.vehicleId}`);
+    }
+  }
 
   const handleView = (vehicle) => {
     setViewVehicle(vehicle);
@@ -89,19 +180,26 @@ function Reserve({ token, setShowReserve, setShowAddVehicle }) {
         <td>
           <div className="vehicle-actions">
             <button onClick={() => handleView(vehicle)} className="view-button">
-                View
+              View
             </button>
-            <button onClick={() => handleReserve(vehicle.vehicleId)} className="reserve-button">
+            {(status != 'reserved' && userReservation == null) ? (
+              <button onClick={() => handleReserve(vehicle.vehicleId)} className="reserve-button">
                 Reserve
-            </button>
-            {canRepairVehicle ? (
+              </button>) 
+            : (<></>)}
+            {(status === 'reserved') ? (
+              <button onClick={() => removeReserve(vehicle)} className="reserve-button">
+                Remove Reserve
+              </button>) 
+            : (<></>)}
+            {(canRepairVehicle && status != 'reserved') ? (
               <button onClick={() => handleRepair(vehicle.vehicleId)} className="view-button">
-                  Repair
+                Repair
               </button>) 
             : (<></>)}
             {canDeleteVehicle ? (
               <button onClick={() => handleDelete(vehicle.vehicleId)} className="reserve-button">
-                  Delete
+                Delete
               </button>) 
             : (<></>)}
           </div>
@@ -149,7 +247,9 @@ function Reserve({ token, setShowReserve, setShowAddVehicle }) {
           </tr>
           <tr>
             <td><strong>Status:</strong></td>
-            <td>{viewVehicle.status}</td>
+            <td>{(viewVehicle.status != 'available' && viewVehicle.status != 'repair') ?
+            ('reserved by: ' + viewVehicle.status) : viewVehicle.status
+            }</td>
           </tr>
         </tbody>
       </table>
@@ -179,10 +279,19 @@ function Reserve({ token, setShowReserve, setShowAddVehicle }) {
                   {vehicles.map((vehicle, index) => (
                     (vehicle.status === 'repair' && canViewAllRepairs) ? vehicleTableRow(vehicle, 'repair') : (<></>)
                   ))}
-                  {vehicles.map((vehicle, index) => (
-                    (vehicle.status != 'repair' && vehicle.status != 'available' && canViewAllReservations) 
-                    ? vehicleTableRow(vehicle, 'reserved') : (<></>)
-                  ))}
+                  {vehicles.map((vehicle, index) => {
+                    if(vehicle.status != 'repair' && vehicle.status != 'available'){
+                      if(canViewAllReservations) return vehicleTableRow(vehicle, 'reserved');
+
+                      // Check reservation data fetched previously
+                      //const reservation = reservations.find(res => res.reservationId === vehicle.status);
+                      if (userReservation && userReservation.reservationId === vehicle.status) {
+                        return vehicleTableRow(vehicle, 'reserved');
+                      }
+                    }
+                    return null;
+                  }
+                  )}
               </tbody>
             </table>) 
           : loading ? (<p>Loading...</p>) 
@@ -198,7 +307,10 @@ function Reserve({ token, setShowReserve, setShowAddVehicle }) {
         )}
         {canViewAllReservations && (
         <button
-            onClick={() => setShowReserve(false)}
+            onClick={() => {
+              setShowReserve(false);
+              setShowAllCarReservations(true);
+            }}
             className="goto-register-button"
         >
           View All Reservations

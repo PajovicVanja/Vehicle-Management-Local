@@ -57,6 +57,7 @@ function App() {
           token={token}
           setShowReserve={setShowReserve}
           setShowAddVehicle={setShowAddVehicle}
+          setShowAllCarReservations={setShowAllCarReservations}
         />
       ) : showProfile ? (
         <Profile token={token} setShowProfile={setShowProfile} />
