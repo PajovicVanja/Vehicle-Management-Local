@@ -6,7 +6,6 @@ import ReserveVehicleForm from '../components/ReserveVehicleForm';
 
 function Reserve({ token, setShowReserve, setShowAddVehicle }) {
   const [message, setMessage] = useState('');
-  const [admin, setAdmin] = useState(false);
   const [vehicles, setVehicles] = useState([]); 
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -25,6 +24,8 @@ function Reserve({ token, setShowReserve, setShowAddVehicle }) {
   }, [token]);
 
   const canAddVehicle = role === 'Admin';
+  const canRepairVehicle = role === 'Admin';
+  const canDeleteVehicle = role === 'Admin';
   const canViewAllReservations = role === 'Admin' || role === 'Manager';
 
   const fetchVehicles = async () => {
@@ -143,7 +144,7 @@ function Reserve({ token, setShowReserve, setShowAddVehicle }) {
               </thead>
               <tbody>
                   {vehicles.map((vehicle, index) => (
-                    (vehicle.status === 'available' || !admin) ? (
+                    (vehicle.status === 'available' || canViewAllReservations) ? (
                       <tr key={vehicle.vehicleId}>
                           <td>{vehicle.vehicleName}</td>
                           <td>{vehicle.engine} - {vehicle.hp} HP</td>
@@ -155,12 +156,12 @@ function Reserve({ token, setShowReserve, setShowAddVehicle }) {
                               <button onClick={() => handleReserve(vehicle.vehicleId)} className="reserve-button">
                                   Reserve
                               </button>
-                              {!admin ? ( // !! TODO: change once admin functionality is implemented to the User
+                              {canRepairVehicle ? (
                                 <button onClick={() => handleRepair(vehicle.vehicleId)} className="view-button">
                                     Repair
                                 </button>) 
                               : (<></>)}
-                              {!admin ? ( // !! TODO: change once admin functionality is implemented to the User
+                              {canDeleteVehicle ? (
                                 <button onClick={() => handleDelete(vehicle.vehicleId)} className="reserve-button">
                                     Delete
                                 </button>) 
@@ -178,7 +179,7 @@ function Reserve({ token, setShowReserve, setShowAddVehicle }) {
       </p>
       <div className="button-group">
         <button onClick={() => setShowReserve(false)} className='goto-register-button'>Back to Dashboard</button>
-        {!admin ? //remove the ! once admin functionality is added to Users
+        {canAddVehicle ?
         <button onClick={() => setShowAddVehicle(true)} className='goto-register-button'>Add vehicle</button> 
         : <></>
         }
