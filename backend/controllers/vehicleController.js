@@ -119,7 +119,7 @@ async function reserveVehicle(req, res) {
       return res.status(400).json({ success: false, message: 'Vehicle is not available for reservation.' });
     }
 
-    const reservationRef = db.collection('reservations').doc();
+    const reservationRef = db.collection('reservation').doc();
     const reservationId = reservationRef.id;
 
     await reservationRef.set({
@@ -189,7 +189,7 @@ async function getVehicleReservations(req, res) {
   }
 
   try {
-    const snapshot = await db.collection('reservations').get();
+    const snapshot = await db.collection('reservation').get();
     const reservations = snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
 
     res.status(200).json(reservations);
@@ -226,52 +226,68 @@ async function getAdminReservations(req, res) {
   const { role } = req.user;
 
   if (role !== 'Admin') {
+    console.error('[getAdminReservations] Unauthorized access.');
     return res.status(403).json({ message: 'Unauthorized access. Only admins can view reservations.' });
   }
 
   try {
-    const reservationsSnapshot = await db.collection('reservations').get();
+    console.log('[getAdminReservations] Fetching all reservations.');
+
+    const reservationsSnapshot = await db.collection('reservation').get();
     const reservations = [];
 
     for (const doc of reservationsSnapshot.docs) {
       const reservationData = doc.data();
+      console.log(`[getAdminReservations] Processing reservation: ${reservationData.reservationId}`);
 
       // Fetch associated vehicle
       let vehicleData = null;
       if (reservationData.vehicleId) {
         const vehicleSnapshot = await db.collection('vehicles').doc(reservationData.vehicleId).get();
-        if (vehicleSnapshot.exists) {
-          vehicleData = vehicleSnapshot.data();
-        }
+        vehicleData = vehicleSnapshot.exists ? vehicleSnapshot.data() : null;
       }
 
       // Fetch associated user
       let userData = null;
       if (reservationData.userId) {
         const userSnapshot = await db.collection('users').doc(reservationData.userId).get();
-        if (userSnapshot.exists) {
-          userData = userSnapshot.data();
-        }
+        userData = userSnapshot.exists ? userSnapshot.data() : null;
       }
 
       reservations.push({
-        reservationId: doc.id,
+        reservationId: reservationData.reservationId,
         startDate: reservationData.startDate,
         endDate: reservationData.endDate,
         status: reservationData.status,
-        user: userData ? { email: userData.email, licenseImageUrl: userData.licenseImageUrl } : null,
+        user: userData
+          ? {
+              email: userData.email || 'N/A',
+              licenseImageUrl: userData.licenseImageUrl || null,
+            }
+          : { email: 'N/A', licenseImageUrl: null },
         vehicle: vehicleData
-          ? { vehicleName: vehicleData.vehicleName, color: vehicleData.color, engine: vehicleData.engine }
-          : null,
+          ? {
+              vehicleName: vehicleData.vehicleName || 'N/A',
+              color: vehicleData.color || 'N/A',
+              engine: vehicleData.engine || 'N/A',
+            }
+          : { vehicleName: 'N/A', color: 'N/A', engine: 'N/A' },
       });
     }
 
+    console.log('[getAdminReservations] Completed processing reservations.');
     res.status(200).json({ success: true, data: reservations });
   } catch (error) {
-    console.error('Error fetching reservations:', error);
-    res.status(500).json({ success: false, message: 'Error fetching reservations.', error: error.message });
+    console.error('[getAdminReservations] Error fetching reservations:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error fetching reservations.',
+      error: error.message,
+    });
   }
 }
+
+
 
 
 

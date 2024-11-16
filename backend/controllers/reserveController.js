@@ -6,7 +6,7 @@ async function getReservations(req,res){
   console.log('Received UID in getReservations:', uid); // Log UID for debugging
 
   try{
-    const reservationsSnapshot = await db.collection('reservations').get();
+    const reservationsSnapshot = await db.collection('reservation').get();
     const reservationsList = [];
 
     reservationsSnapshot.forEach((doc)=>{
@@ -36,7 +36,7 @@ async function deleteReservation(req, res) {
 
   try {
       // Query the 'vehicles' collection for documents with the specified name
-      const vehiclesSnapshot = await db.collection('reservations')
+      const vehiclesSnapshot = await db.collection('reservation')
           .where('reserveId', '==', reserveId)
           .get();
 

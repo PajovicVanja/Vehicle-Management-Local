@@ -10,14 +10,21 @@ function CurrentReservationsAdmin({ token, setShowAllCarReservations }) {
   useEffect(() => {
     const fetchReservations = async () => {
       try {
+        console.log('[CurrentReservationsAdmin] Fetching reservations...');
         const result = await getAdminReservations(token);
-        if (result.success) {
-          setReservations(result.data);
+
+        console.log('[CurrentReservationsAdmin] Raw API Response:', result);
+
+        if (result?.success && Array.isArray(result.data?.data)) {
+          console.log('[CurrentReservationsAdmin] Reservations fetched:', result.data.data);
+          setReservations(result.data.data);
         } else {
-          setError(result.message || 'Failed to fetch reservations.');
+          console.error('[CurrentReservationsAdmin] Invalid data format:', result);
+          throw new Error('Invalid data format in response.');
         }
       } catch (err) {
-        setError(err.message || 'An error occurred while fetching reservations.');
+        console.error('[CurrentReservationsAdmin] Error:', err.message);
+        setError('Failed to fetch reservations.');
       } finally {
         setLoading(false);
       }
@@ -32,6 +39,21 @@ function CurrentReservationsAdmin({ token, setShowAllCarReservations }) {
 
   if (error) {
     return <p className="error-message">Error: {error}</p>;
+  }
+
+  if (!reservations.length) {
+    return (
+      <div className="reservations-container">
+        <h2>Current Car Reservations</h2>
+        <p>No reservations found.</p>
+        <button
+          onClick={() => setShowAllCarReservations(false)}
+          className="goto-register-button"
+        >
+          Back to Dashboard
+        </button>
+      </div>
+    );
   }
 
   return (
@@ -51,21 +73,24 @@ function CurrentReservationsAdmin({ token, setShowAllCarReservations }) {
           </tr>
         </thead>
         <tbody>
-          {reservations.length > 0 ? (
-            reservations.map((reservation) => (
-              <tr key={reservation.reservationId}>
-                <td>{reservation.reservationId}</td>
-                <td>{reservation.vehicle?.vehicleName || 'N/A'}</td>
-                <td>{reservation.vehicle?.color || 'N/A'}</td>
-                <td>{reservation.vehicle?.engine || 'N/A'}</td>
+          {reservations.map((reservation) => {
+            const vehicle = reservation.vehicle || {};
+            const user = reservation.user || {};
+
+            return (
+              <tr key={reservation.reservationId || Math.random()}>
+                <td>{reservation.reservationId || 'N/A'}</td>
+                <td>{vehicle.vehicleName || 'N/A'}</td>
+                <td>{vehicle.color || 'N/A'}</td>
+                <td>{vehicle.engine || 'N/A'}</td>
                 <td>{reservation.startDate || 'N/A'}</td>
                 <td>{reservation.endDate || 'N/A'}</td>
-                <td>{reservation.user?.email || 'N/A'}</td>
+                <td>{user.email || 'N/A'}</td>
                 <td>
-                  {reservation.user?.licenseImageUrl ? (
+                  {user.licenseImageUrl ? (
                     <img
-                      src={reservation.user.licenseImageUrl}
-                      alt="Driver's License"
+                      src={user.licenseImageUrl}
+                      alt="License"
                       className="license-thumbnail"
                     />
                   ) : (
@@ -73,12 +98,8 @@ function CurrentReservationsAdmin({ token, setShowAllCarReservations }) {
                   )}
                 </td>
               </tr>
-            ))
-          ) : (
-            <tr>
-              <td colSpan="8">No reservations found.</td>
-            </tr>
-          )}
+            );
+          })}
         </tbody>
       </table>
       <button
