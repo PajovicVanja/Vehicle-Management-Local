@@ -62,9 +62,9 @@ export const repairVehicle = async (vehicleId,token) => {
   }
 };
 
-export const reserveVehicle = async (vehicleId,token) => {
+export const reserveVehicle = async (vehicleId, reserveId, token) => {
   try {
-    const response = await fetch(`${API_URL}/vehicles/${vehicleId}/reserve`, {
+    const response = await fetch(`${API_URL}/vehicles/${vehicleId}/reserve/${reserveId}`, {
       method: 'PATCH',
       headers: {
         'Content-Type': 'application/json',

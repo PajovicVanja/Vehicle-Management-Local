@@ -20,6 +20,7 @@ function ReserveVehicleForm({ token, reserveVehicleId, setReserveVehicleId, fetc
     // Generate a unique document reference with a new ID
     const reservationRef = doc(collection(db, 'reservation'));
     const reservationId = reservationRef.id;
+    console.log('Token in ReserveVehicleForm: ', token);
     
     const newReservation = {
       reservationId,
@@ -33,9 +34,9 @@ function ReserveVehicleForm({ token, reserveVehicleId, setReserveVehicleId, fetc
     try {
         // Add the document with the custom ID and data
         await setDoc(reservationRef, newReservation);
-        console.log(`Added reservation ${newReservation.vehicleName} with ID: ${reservationId}`);
+        console.log(`Added reservation ${newReservation.vehicleId} with ID: ${reservationId}`);
         setReserveVehicleId(null);
-        const result = await reserveVehicle(reserveVehicleId, reservationId);
+        const result = await reserveVehicle(reserveVehicleId, reservationId, token);
         if (result.success) {
             console.log(`Vehicle ${reserveVehicleId} status updated.`);
             // refresh the list of vehicles here

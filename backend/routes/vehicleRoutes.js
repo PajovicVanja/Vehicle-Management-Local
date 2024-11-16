@@ -14,7 +14,7 @@ router.get('/vehicles/:vehicleId', verifyAuthToken, getVehicle);
 router.patch('/vehicles/:vehicleId/repair', verifyAuthToken, repairVehicle);
 
 // Route to reserve a vehicle
-router.patch('/vehicles/:vehicleId/reserve', verifyAuthToken, reserveVehicle);
+router.patch('/vehicles/:vehicleId/reserve/:reserveId', verifyAuthToken, reserveVehicle);
 
 // Route to delete a vehicle by name
 router.delete('/vehicles/:vehicleId', verifyAuthToken, deleteVehicle);
