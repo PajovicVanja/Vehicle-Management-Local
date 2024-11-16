@@ -73,3 +73,6 @@ frontend/src/mergeFilesFtd.js
 frontend/src/output.js
 backend/config/serviceAccountKey.json
 env
+frontend/src/componentsMerge.js
+frontend/src/combinedOutput.js
+frontend/src/componentsMerge.js

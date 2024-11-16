@@ -160,4 +160,45 @@ async function deleteVehicle(req, res) {
   }
 }
 
-module.exports = { getVehicles, repairVehicle, deleteVehicle, getVehicle, reserveVehicle };
+async function getVehicleReservations(req, res) {
+  const { role } = req.user;
+
+  if (role !== 'Admin') {
+    return res.status(403).json({ message: 'Only admins can view reservations.' });
+  }
+
+  try {
+    const snapshot = await db.collection('reservations').get();
+    const reservations = snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
+
+    res.status(200).json(reservations);
+  } catch (error) {
+    console.error('Error fetching reservations:', error);
+    res.status(500).json({ message: 'Error fetching reservations.', error: error.message });
+  }
+}
+
+async function reportMalfunction(req, res) {
+  const { uid } = req.user;
+  const { vehicleId, description } = req.body;
+
+  try {
+    await db.collection('malfunctions').add({
+      userId: uid,
+      vehicleId,
+      description,
+      status: 'Pending',
+      createdAt: new Date(),
+    });
+
+    // Example: Sending a notification (placeholder, replace with FCM logic)
+    console.log(`Notification sent to Admin: Malfunction reported for vehicle ${vehicleId}.`);
+
+    res.status(201).json({ message: 'Malfunction reported successfully.' });
+  } catch (error) {
+    console.error('Error reporting malfunction:', error);
+    res.status(500).json({ message: 'Error reporting malfunction.', error: error.message });
+  }
+}
+
+module.exports = { getVehicles, repairVehicle, deleteVehicle, getVehicle, reserveVehicle, getVehicleReservations, reportMalfunction  };

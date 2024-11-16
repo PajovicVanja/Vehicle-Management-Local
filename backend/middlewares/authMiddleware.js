@@ -2,17 +2,16 @@
 const { admin } = require('../config/firebaseConfig');
 
 const verifyAuthToken = async (req, res, next) => {
-  const token = req.headers.authorization?.split(' ')[1]; // Check for "Bearer <token>"
+  const token = req.headers.authorization?.split(' ')[1];
 
   if (!token) {
-    console.log('Authorization token missing');
     return res.status(401).json({ message: 'Authorization token missing' });
   }
 
   try {
     const decodedToken = await admin.auth().verifyIdToken(token);
-    req.user = decodedToken; // Attach user info to request
-    console.log('Decoded UID:', decodedToken.uid); // Log the UID for debugging
+    req.user = decodedToken;
+    req.user.role = decodedToken.role || 'Driver'; // Default to Driver if no role
     next();
   } catch (error) {
     console.error('Token verification error:', error);

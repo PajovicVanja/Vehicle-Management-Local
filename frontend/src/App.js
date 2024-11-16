@@ -1,4 +1,5 @@
-import React, { useState } from 'react';
+// App.js
+import React, { useState, useEffect } from 'react';
 import './App.css';
 import Register from './components/Register';
 import Login from './components/Login';
@@ -7,32 +8,46 @@ import ReserveVehicle from './components/ReserveVehicle';
 import AddVehicle from './components/AddVehicle';
 import UploadLicense from './components/UploadLicense';
 import CurrentReservationsAdmin from './components/CurrentReservationsAdmin';
+import { getUserData } from './services/authService';
 
 function App() {
   const [token, setToken] = useState(null);
-  const [isRegistering, setIsRegistering] = useState(false);
+  const [role, setRole] = useState('');
+  const [showRegister, setShowRegister] = useState(false);
   const [showProfile, setShowProfile] = useState(false);
   const [showReserve, setShowReserve] = useState(false);
   const [showAddVehicle, setShowAddVehicle] = useState(false);
   const [showAllCarReservations, setShowAllCarReservations] = useState(false);
+  const [licenseUploaded, setLicenseUploaded] = useState(false);
+
+  useEffect(() => {
+    const fetchRole = async () => {
+      if (token) {
+        const userData = await getUserData(token);
+        if (userData.success) {
+          setRole(userData.data.role || 'Driver');
+          setLicenseUploaded(!!userData.data.licenseImageUrl);
+        }
+      }
+    };
+    fetchRole();
+  }, [token]);
 
   return (
     <div>
-      <h1>
-        {!setShowReserve ? 'Driver Login System' : 'Vehicle Reservation System'}
-      </h1>
+      <h1>Vehicle Management System</h1>
       {!token ? (
         <>
-          {isRegistering ? (
+          {showRegister ? (
             <Register setToken={setToken} />
           ) : (
             <Login setToken={setToken} />
           )}
           <button
             className="goto-register-button"
-            onClick={() => setIsRegistering(!isRegistering)}
+            onClick={() => setShowRegister(!showRegister)}
           >
-            {isRegistering ? 'Switch to Login' : 'Switch to Register'}
+            {showRegister ? 'Switch to Login' : 'Switch to Register'}
           </button>
         </>
       ) : showAddVehicle ? (
@@ -52,7 +67,9 @@ function App() {
         />
       ) : (
         <div className="menu-group">
-          <UploadLicense token={token} />
+          {role === 'Driver' && !licenseUploaded && (
+            <UploadLicense token={token} />
+          )}
           <div className="button-group">
             <button
               onClick={() => setShowProfile(true)}
@@ -66,16 +83,18 @@ function App() {
             >
               Reserve Vehicle
             </button>
-            <button
-              onClick={() => setShowAllCarReservations(true)}
-              className="goto-register-button"
-            >
-              View All Reservations
-            </button>
+            {(role === 'Admin' || role === 'Manager') && (
+              <button
+                onClick={() => setShowAllCarReservations(true)}
+                className="goto-register-button"
+              >
+                View All Reservations
+              </button>
+            )}
             <button
               onClick={() => {
-                setShowProfile(false);
                 setToken(null);
+                setRole('');
               }}
               className="goto-register-button"
             >

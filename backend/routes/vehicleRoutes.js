@@ -1,6 +1,6 @@
 const express = require('express');
 const verifyAuthToken = require('../middlewares/authMiddleware');
-const { getVehicles, repairVehicle, deleteVehicle, getVehicle, reserveVehicle } = require('../controllers/vehicleController');
+const { getVehicles, repairVehicle, deleteVehicle, getVehicle, reserveVehicle, getVehicleReservations ,reportMalfunction } = require('../controllers/vehicleController');
 
 const router = express.Router();
 
@@ -18,5 +18,10 @@ router.patch('/vehicles/:vehicleId/reserve', verifyAuthToken, reserveVehicle);
 
 // Route to delete a vehicle by name
 router.delete('/vehicles/:vehicleId', verifyAuthToken, deleteVehicle);
+
+router.get('/reservations', verifyAuthToken, getVehicleReservations);
+
+router.post('/report-malfunction', verifyAuthToken, reportMalfunction);
+
 
 module.exports = router;
