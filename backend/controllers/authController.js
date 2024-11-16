@@ -62,24 +62,6 @@ async function getProfile(req, res) {
   }
 }
 
-async function registerUser(req, res) {
-  const { email, password, role } = req.body;
 
-  try {
-    const user = await admin.auth().createUser({ email, password });
-    await setUserRole(user.uid, role || 'Driver'); // Default role is Driver
 
-    await db.collection('users').doc(user.uid).set({
-      email,
-      role: role || 'Driver',
-      createdAt: new Date(),
-    });
-
-    res.status(201).json({ message: 'User registered successfully' });
-  } catch (error) {
-    console.error('Error registering user:', error);
-    res.status(500).json({ message: 'Registration failed', error: error.message });
-  }
-}
-
-module.exports = { uploadLicenseImage, getProfile, registerUser };
+module.exports = { uploadLicenseImage, getProfile };
