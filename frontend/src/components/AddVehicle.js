@@ -1,5 +1,6 @@
 // components/AddVehicle.js
 import React, { useState, useEffect } from 'react';
+
 import '../CSS/Profile.css';
 import '../CSS/AddVehicle.css';
 import { db, collection, doc, setDoc  } from '../firebaseClient'; // Import Firestore

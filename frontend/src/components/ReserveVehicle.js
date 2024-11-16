@@ -4,7 +4,8 @@ import '../App.css';
 import '../CSS/Profile.css';
 import '../CSS/ReserveVehicle.css';
 import { getUserData } from '../services/authService';
-import { getVehicleData, deleteVehicle, reserveVehicle, repairVehicle } from '../services/vehicleService';
+import { getVehicleData, deleteVehicle, repairVehicle } from '../services/vehicleService';
+import ReserveVehicleForm from '../components/ReserveVehicleForm';
 
 function Reserve({ token, setShowReserve, setShowAddVehicle }) {
   const [message, setMessage] = useState('');
@@ -13,6 +14,7 @@ function Reserve({ token, setShowReserve, setShowAddVehicle }) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [viewVehicle,setViewVehicle] = useState(null);
+  const [reserveVehicleId,setReserveVehicleId] = useState(null);
 
   useEffect(() => {
     const fetchData = async () => {
@@ -26,7 +28,7 @@ function Reserve({ token, setShowReserve, setShowAddVehicle }) {
     fetchData();
   }, [token]);
 
-  const fetchData = async () => {
+  const fetchVehicles = async () => {
     setLoading(true); // Start loading
     try {
       const vehicleSnapshot = await getVehicleData(token);
@@ -45,19 +47,12 @@ function Reserve({ token, setShowReserve, setShowAddVehicle }) {
   };
 
   useEffect(() => {
-    fetchData();
+    fetchVehicles();
   }, [token]);
 
-  async function handleReserve(vehicleId) {
-    const result = await reserveVehicle(vehicleId, token);
-    if (result.success) {
-      console.log(`Vehicle ${vehicleId} status updated.`);
-      // refresh the list of vehicles here
-      fetchData();
-    } else {
-      console.error(`Failed to update vehicle status for ID: ${vehicleId}`);
-    }
-  }
+  const handleReserve = (vehicleId) => {
+    setReserveVehicleId(vehicleId);
+  };
 
   const handleView = (vehicle) => {
     setViewVehicle(vehicle);
@@ -68,7 +63,7 @@ function Reserve({ token, setShowReserve, setShowAddVehicle }) {
     if (result.success) {
       console.log(`Vehicle ${vehicleId} status updated.`);
       // refresh the list of vehicles here
-      fetchData();
+      fetchVehicles();
     } else {
       console.error(`Failed to update vehicle status for ID: ${vehicleId}`);
     }
@@ -79,11 +74,21 @@ function Reserve({ token, setShowReserve, setShowAddVehicle }) {
     if (result.success) {
       console.log(`Vehicle ${vehicleId} deleted successfully.`);
       // refresh the list of vehicles here
-      fetchData();
+      fetchVehicles();
     } else {
       console.error('Error deleting vehicle:', result.error);
     }
   }
+
+  // Reserve a vehicle, form
+  if (reserveVehicleId != null) return (
+    <ReserveVehicleForm 
+      token={token} 
+      reserveVehicleId={reserveVehicleId} 
+      setReserveVehicleId={setReserveVehicleId} 
+      fetchVehicles={fetchVehicles}
+    />
+  );
 
   // View a single vehicle
   if(viewVehicle!=null) return(
