@@ -63,7 +63,19 @@ function ReserveVehicleForm({ token, reserveVehicleId, setReserveVehicleId, fetc
           minDate={new Date()} // Prevent selection of past dates
         />
         <br />
-        <button type="submit" className="add-vehicle-button">Reserve</button>
+        {canAddVehicle && (
+        <button onClick={() => setShowAddVehicle(true)} className="reserve-button">
+            Add Vehicle
+        </button>
+        )}
+        {canViewAllReservations && (
+        <button
+            onClick={() => setShowReserve(false)}
+            className="view-reservations-button"
+        >
+            View All Reservations
+        </button>
+        )}
       </form>
       <button onClick={() => setReserveVehicleId(null)} className='goto-vehicle-select-button'>Back to Vehicle selection</button>
     </div>
