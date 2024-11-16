@@ -1,6 +1,6 @@
 const express = require('express');
 const verifyAuthToken = require('../middlewares/authMiddleware');
-const { getVehicles, repairVehicle, deleteVehicle, getVehicle, reserveVehicle, getVehicleReservations ,reportMalfunction } = require('../controllers/vehicleController');
+const { getVehicles, repairVehicle, deleteVehicle, getVehicle, reserveVehicle, getVehicleReservations ,reportMalfunction , getAdminReservations } = require('../controllers/vehicleController');
 
 const router = express.Router();
 
@@ -14,7 +14,7 @@ router.get('/vehicles/:vehicleId', verifyAuthToken, getVehicle);
 router.patch('/vehicles/:vehicleId/repair', verifyAuthToken, repairVehicle);
 
 // Route to reserve a vehicle
-router.patch('/vehicles/:vehicleId/reserve/:reserveId', verifyAuthToken, reserveVehicle);
+router.patch('/vehicles/:vehicleId/reserve', verifyAuthToken, reserveVehicle);
 
 // Route to delete a vehicle by name
 router.delete('/vehicles/:vehicleId', verifyAuthToken, deleteVehicle);
@@ -22,6 +22,8 @@ router.delete('/vehicles/:vehicleId', verifyAuthToken, deleteVehicle);
 router.get('/reservations', verifyAuthToken, getVehicleReservations);
 
 router.post('/report-malfunction', verifyAuthToken, reportMalfunction);
+
+router.get('/admin-reservations', verifyAuthToken, getAdminReservations);
 
 
 module.exports = router;

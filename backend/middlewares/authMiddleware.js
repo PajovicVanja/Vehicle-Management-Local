@@ -1,5 +1,4 @@
-// middlewares/authMiddleware.js
-const { admin } = require('../config/firebaseConfig');
+const { admin, db } = require('../config/firebaseConfig');
 
 const verifyAuthToken = async (req, res, next) => {
   const token = req.headers.authorization?.split(' ')[1];
@@ -11,7 +10,15 @@ const verifyAuthToken = async (req, res, next) => {
   try {
     const decodedToken = await admin.auth().verifyIdToken(token);
     req.user = decodedToken;
-    req.user.role = decodedToken.role || 'Driver'; // Default to Driver if no role
+
+    // Fetch role directly from Firestore
+    const userDoc = await db.collection('users').doc(decodedToken.uid).get();
+    if (userDoc.exists) {
+      req.user.role = userDoc.data().role || 'Driver'; // Default to Driver
+    } else {
+      req.user.role = 'Driver';
+    }
+
     next();
   } catch (error) {
     console.error('Token verification error:', error);
