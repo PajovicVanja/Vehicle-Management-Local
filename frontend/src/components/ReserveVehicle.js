@@ -179,10 +179,19 @@ function Reserve({ token, setShowReserve, setShowAddVehicle }) {
       </p>
       <div className="button-group">
         <button onClick={() => setShowReserve(false)} className='goto-register-button'>Back to Dashboard</button>
-        {canAddVehicle ?
-        <button onClick={() => setShowAddVehicle(true)} className='goto-register-button'>Add vehicle</button> 
-        : <></>
-        }
+        {canAddVehicle && (
+        <button onClick={() => setShowAddVehicle(true)} className="reserve-button">
+            Add Vehicle
+        </button>
+        )}
+        {canViewAllReservations && (
+        <button
+            onClick={() => setShowReserve(false)}
+            className="view-reservations-button"
+        >
+            View All Reservations
+        </button>
+        )}
       </div>
       {message && <p className="profile-message">{message}</p>}
     </div>
