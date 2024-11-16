@@ -90,6 +90,44 @@ async function repairVehicle(req, res) {
   }
 }
 
+async function unreserveVehicle(req,res){
+  const { uid } = req.user; // Assuming user is authenticated and uid is available
+  console.log('Received UID in unreserveVehicle:', uid); // Log UID for debugging
+
+  const { vehicleId } = req.params;  // Get the vehicle ID from the route
+  
+  try {
+    // Get the vehicle document from Firestore
+    const vehicleRef = db.collection('vehicles').doc(vehicleId);
+    const docSnapshot = await vehicleRef.get();
+
+    // Check if the vehicle exists
+    if (!docSnapshot.exists) {
+      return res.status(404).json({ message: 'Vehicle not found' });
+    }
+
+    // Get the current status of the vehicle
+    const vehicleData = docSnapshot.data();
+    let newStatus;
+
+    // Toggle the status based on current value
+    if (vehicleData.status != 'available' && vehicleData.status != 'repair') {
+      newStatus = 'available';
+    } else {
+      // If status is anything else, do nothing
+      return res.status(400).json({ message: 'Cannot change status, vehicle is not reserved.' });
+    }
+
+    // Update the status in Firestore
+    await vehicleRef.update({ status: newStatus });
+    
+    res.status(200).json({ message: `Vehicle ${vehicleId} status updated to "${newStatus}".` });
+  } catch (error) {
+    console.error('Error updating vehicle status:', error);
+    res.status(500).json({ message: 'Error updating vehicle status', error: error.message });
+  }
+}
+
 async function reserveVehicle(req, res) {
   console.log('[reserveVehicle] Received request to reserve vehicle.');
   const { uid } = req.user;
@@ -291,4 +329,5 @@ async function getAdminReservations(req, res) {
 
 
 
-module.exports = { getVehicles, repairVehicle, deleteVehicle, getVehicle, reserveVehicle, getVehicleReservations, reportMalfunction, getAdminReservations  };
+module.exports = { getVehicles, repairVehicle, deleteVehicle, getVehicle, reserveVehicle, getVehicleReservations, 
+  reportMalfunction, getAdminReservations, unreserveVehicle  };

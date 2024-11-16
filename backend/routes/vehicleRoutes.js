@@ -1,7 +1,7 @@
 const express = require('express');
 const verifyAuthToken = require('../middlewares/authMiddleware');
 const { getVehicles, repairVehicle, deleteVehicle, getVehicle, reserveVehicle, getVehicleReservations 
-    ,reportMalfunction, getAdminReservations 
+    ,reportMalfunction, getAdminReservations , unreserveVehicle
  } = require('../controllers/vehicleController');
 
 const router = express.Router();
@@ -16,7 +16,7 @@ router.get('/vehicles/:vehicleId', verifyAuthToken, getVehicle);
 router.patch('/vehicles/:vehicleId/repair', verifyAuthToken, repairVehicle);
 
 // Route to remove reservation of vehicle
-router.patch('/vehicles/:vehicleId/unreserve', verifyAuthToken, reserveVehicle);
+router.patch('/vehicles/:vehicleId/unreserve', verifyAuthToken, unreserveVehicle);
 
 // Route to reserve a vehicle
 router.patch('/vehicles/:vehicleId/reserve', verifyAuthToken, reserveVehicle);
