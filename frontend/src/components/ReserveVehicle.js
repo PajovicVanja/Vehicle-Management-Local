@@ -181,7 +181,7 @@ function Reserve({ token, setShowReserve, setShowAddVehicle }) {
         <button onClick={() => setShowReserve(false)} className='goto-register-button'>Back to Dashboard</button>
         {canAddVehicle && (
         <button onClick={() => setShowAddVehicle(true)} className="reserve-button">
-            Add Vehicle
+          Add Vehicle
         </button>
         )}
         {canViewAllReservations && (
@@ -189,7 +189,7 @@ function Reserve({ token, setShowReserve, setShowAddVehicle }) {
             onClick={() => setShowReserve(false)}
             className="view-reservations-button"
         >
-            View All Reservations
+          View All Reservations
         </button>
         )}
       </div>
