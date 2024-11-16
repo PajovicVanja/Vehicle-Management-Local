@@ -3,7 +3,7 @@ import React, { useState } from 'react';
 import '../CSS/UploadLicense.css';
 import { uploadLicense } from '../services/authService';
 
-function UploadLicense({ token }) {
+function UploadLicense({ token, setLicenseUploaded }) {
   const [file, setFile] = useState(null);
   const [message, setMessage] = useState('');
 
@@ -17,6 +17,7 @@ function UploadLicense({ token }) {
       const result = await uploadLicense(file, token);
       if (result.success) {
         setMessage(result.message || 'Upload successful');
+        setLicenseUploaded(true); // should fix issue where the Upload Licence form stays active
       } else {
         setMessage(result.error || 'Upload failed');
       }

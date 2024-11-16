@@ -7,7 +7,11 @@ import ReserveVehicle from './components/ReserveVehicle';
 import AddVehicle from './components/AddVehicle';
 import UploadLicense from './components/UploadLicense';
 import CurrentReservationsAdmin from './components/CurrentReservationsAdmin';
+import ViewReservation from './components/ViewReservation';
 import { getUserData } from './services/authService';
+import { getAuth } from 'firebase/auth'; // Import Firebase Authentication
+
+import { getReservationData } from './services/reservationService';
 
 function App() {
   const [token, setToken] = useState(null); // Auth token
@@ -21,6 +25,11 @@ function App() {
   const [showAddVehicle, setShowAddVehicle] = useState(false);
   const [showAllCarReservations, setShowAllCarReservations] = useState(false);
 
+  //Reservation form
+  const [uid, setUid] = useState(null);
+  const [reservations, setReservations] = useState([]); 
+  const [userReservation, setUserReservation] = useState(null);
+
   // Fetch role and license status after login
   useEffect(() => {
     const fetchRole = async () => {
@@ -29,11 +38,36 @@ function App() {
         if (userData.success) {
           setRole(userData.data.role || 'Driver');
           setLicenseUploaded(!!userData.data.licenseImageUrl);
+
+          fetchAllReservations();
+          // Get the authenticated user's UID
+          const auth = getAuth();
+          const user = auth.currentUser;
+          user ? setUid(user.uid) : setUid(null);
         }
       }
     };
     fetchRole();
   }, [token]);
+
+  useEffect(() => {
+    // Fetch user reservation only after `reservations` and `uid` have been set
+    if (reservations.length > 0 && uid) {
+      const userRes = reservations.find(res => res.userId === uid);
+      setUserReservation(userRes);
+    }
+  }, [reservations, uid]);
+  
+  const fetchAllReservations = async () => {
+    try {
+      const vehicleSnapshot = await getReservationData(token);
+      if (vehicleSnapshot.success) {
+        setReservations(vehicleSnapshot.data);
+      }
+    } catch (error) {
+      console.log(error);
+    } 
+  };
 
   return (
     <div>
@@ -60,7 +94,9 @@ function App() {
           token={token}
           setShowReserve={setShowReserve}
           setShowAddVehicle={setShowAddVehicle}
-          canReserve={role === 'Driver'} // Pass prop to control reservation ability
+          setShowAllCarReservations={setShowAllCarReservations}
+          canReserve={role === 'Driver'} 
+          userReservationReset={setUserReservation}
         />
       ) : showProfile ? (
         <Profile token={token} setShowProfile={setShowProfile} />
@@ -75,6 +111,10 @@ function App() {
           {role === 'Driver' && !licenseUploaded && (
             <UploadLicense token={token} />
           )}
+          {/* Show the active reservation, if it exists */}
+          {userReservation ? (
+            <ViewReservation token={token} reservationData={userReservation} />
+          ) : (<></>)}
           <div className="button-group">
             <button
               onClick={() => setShowProfile(true)}

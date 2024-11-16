@@ -27,12 +27,40 @@
     border-bottom: 2px solid #ddd;
   }
 
-  .vehicle-table tbody tr:nth-child(even) {
+  .vehicle-table tbody tr.available:nth-child(odd) {
+    background-color: #ffffff;
+  }
+
+  .vehicle-table tbody tr.available:nth-child(even) {
     background-color: #f9f9f9;
   }
 
-  .vehicle-table tbody tr:hover {
+  .vehicle-table tbody tr.available:hover {
     background-color: #f1f1f1;
+  }
+
+  .vehicle-table tbody tr.repair:nth-child(odd) {
+    background-color: #FFFFB3;
+  }
+
+  .vehicle-table tbody tr.repair:nth-child(even) {
+    background-color: #FFF3B0;
+  }
+
+  .vehicle-table tbody tr.repair:hover {
+    background-color: #F7E08C;
+  }
+
+  .vehicle-table tbody tr.reserved:nth-child(odd) {
+    background-color: #FFB3B3;
+  }
+
+  .vehicle-table tbody tr.reserved:nth-child(even) {
+    background-color: #FF99A4;
+  }
+
+  .vehicle-table tbody tr.reserved:hover {
+    background-color: #FF8C8C;
   }
 
   .reserve-button {
