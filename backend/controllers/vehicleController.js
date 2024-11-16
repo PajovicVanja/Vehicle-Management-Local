@@ -91,41 +91,62 @@ async function repairVehicle(req, res) {
 }
 
 async function reserveVehicle(req, res) {
-  const { uid } = req.user; // Assuming user is authenticated and uid is available
-  console.log('Received UID in reserveVehicle:', uid); // Log UID for debugging
-  const { vehicleId, reserveId } = req.params;
+  console.log('[reserveVehicle] Received request to reserve vehicle.');
+  const { uid } = req.user;
+  const { vehicleId } = req.params;
+  const { startDate, endDate } = req.body; // Get from body
+
+  console.log('[reserveVehicle] UID:', uid);
+  console.log('[reserveVehicle] Vehicle ID:', vehicleId);
+  console.log('[reserveVehicle] Start Date:', startDate, 'End Date:', endDate);
+
+  if (!startDate || !endDate) {
+    console.error('[reserveVehicle] Missing startDate or endDate.');
+    return res.status(400).json({ success: false, message: 'Start date and end date are required.' });
+  }
 
   try {
-      // Find the specific vehicle document by its ID
-      const vehicleRef = db.collection('vehicles').doc(vehicleId);
+    const vehicleRef = db.collection('vehicles').doc(vehicleId);
+    const vehicleDoc = await vehicleRef.get();
 
-      // Check if the vehicle exists
-      const docSnapshot = await vehicleRef.get();
-      if (!docSnapshot.exists) {
-          return res.status(404).json({ message: 'Vehicle not found' });
-      }
+    if (!vehicleDoc.exists) {
+      return res.status(404).json({ success: false, message: 'Vehicle not found.' });
+    }
 
-      // Get the current status of the vehicle
-      const vehicleData = docSnapshot.data();
+    const vehicleData = vehicleDoc.data();
 
-      // Update the vehicle status
-      if (vehicleData.status === 'available') {
-        await vehicleRef.update({ status: reserveId });
-      }
-      else if (vehicleData.status === 'repair') { //cannot reserve vehicle if it is in repair state
-        return res.status(400).json({ message: 'Cannot change status, vehicle is on repair.' });
-      }
-      else{ // if the status is a reserveId, we want to un-reserve it, so set it back to 'available'.
-        //TODO: only allow this if the user is an admin, or the same user, who made the reservation
-        await vehicleRef.update({ status: 'available' });
-      }
+    if (vehicleData.status !== 'available') {
+      return res.status(400).json({ success: false, message: 'Vehicle is not available for reservation.' });
+    }
 
-      res.status(200).json({ message: 'Vehicle status updated successfully' });
+    const reservationRef = db.collection('reservation').doc();
+    const reservationId = reservationRef.id;
+
+    await reservationRef.set({
+      reservationId,
+      vehicleId,
+      userId: uid,
+      startDate,
+      endDate,
+      status: 'Active',
+      createdAt: new Date(),
+    });
+
+    await vehicleRef.update({ status: reservationId });
+
+    console.log(`[reserveVehicle] Vehicle ${vehicleId} status updated to reservation ID: ${reservationId}`);
+    res.status(201).json({ success: true, message: 'Reservation created successfully.' });
   } catch (error) {
-      console.error('Error updating vehicle status:', error);
-      res.status(500).json({ message: 'Error updating vehicle status', error: error.message });
+    console.error('[reserveVehicle] Error during reservation process:', error);
+    res.status(500).json({ success: false, message: 'Error creating reservation.', error: error.message });
   }
 }
+
+
+
+
+
+
 
 async function deleteVehicle(req, res) {
   const { uid } = req.user; // Assuming user is authenticated and uid is available
@@ -168,7 +189,7 @@ async function getVehicleReservations(req, res) {
   }
 
   try {
-    const snapshot = await db.collection('reservations').get();
+    const snapshot = await db.collection('reservation').get();
     const reservations = snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
 
     res.status(200).json(reservations);
@@ -201,4 +222,73 @@ async function reportMalfunction(req, res) {
   }
 }
 
-module.exports = { getVehicles, repairVehicle, deleteVehicle, getVehicle, reserveVehicle, getVehicleReservations, reportMalfunction  };
+async function getAdminReservations(req, res) {
+  const { role } = req.user;
+
+  if (role !== 'Admin') {
+    console.error('[getAdminReservations] Unauthorized access.');
+    return res.status(403).json({ message: 'Unauthorized access. Only admins can view reservations.' });
+  }
+
+  try {
+    console.log('[getAdminReservations] Fetching all reservations.');
+
+    const reservationsSnapshot = await db.collection('reservation').get();
+    const reservations = [];
+
+    for (const doc of reservationsSnapshot.docs) {
+      const reservationData = doc.data();
+      console.log(`[getAdminReservations] Processing reservation: ${reservationData.reservationId}`);
+
+      // Fetch associated vehicle
+      let vehicleData = null;
+      if (reservationData.vehicleId) {
+        const vehicleSnapshot = await db.collection('vehicles').doc(reservationData.vehicleId).get();
+        vehicleData = vehicleSnapshot.exists ? vehicleSnapshot.data() : null;
+      }
+
+      // Fetch associated user
+      let userData = null;
+      if (reservationData.userId) {
+        const userSnapshot = await db.collection('users').doc(reservationData.userId).get();
+        userData = userSnapshot.exists ? userSnapshot.data() : null;
+      }
+
+      reservations.push({
+        reservationId: reservationData.reservationId,
+        startDate: reservationData.startDate,
+        endDate: reservationData.endDate,
+        status: reservationData.status,
+        user: userData
+          ? {
+              email: userData.email || 'N/A',
+              licenseImageUrl: userData.licenseImageUrl || null,
+            }
+          : { email: 'N/A', licenseImageUrl: null },
+        vehicle: vehicleData
+          ? {
+              vehicleName: vehicleData.vehicleName || 'N/A',
+              color: vehicleData.color || 'N/A',
+              engine: vehicleData.engine || 'N/A',
+            }
+          : { vehicleName: 'N/A', color: 'N/A', engine: 'N/A' },
+      });
+    }
+
+    console.log('[getAdminReservations] Completed processing reservations.');
+    res.status(200).json({ success: true, data: reservations });
+  } catch (error) {
+    console.error('[getAdminReservations] Error fetching reservations:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error fetching reservations.',
+      error: error.message,
+    });
+  }
+}
+
+
+
+
+
+module.exports = { getVehicles, repairVehicle, deleteVehicle, getVehicle, reserveVehicle, getVehicleReservations, reportMalfunction, getAdminReservations  };

@@ -14,39 +14,45 @@ body {
     box-shadow: 0 8px 20px rgba(0, 0, 0, 0.1);
     padding: 2rem;
     width: 90%;
-    max-width: 700px;
+    max-width: auto; /* Increased for a wider layout */
     text-align: center;
 }
 
 h2 {
     color: #e63946;
-    font-size: 1.8rem;
+    font-size: 2rem; /* Slightly larger font */
     margin-bottom: 1.5rem;
-    font-weight: 600;
+    font-weight: bold;
 }
 
 .reservations-table {
     width: 100%;
     border-collapse: collapse;
-    margin-top: 1rem;
+    margin-top: 1.5rem; /* Added more spacing */
 }
 
-.id-column{
-    font-weight:bold
+.id-column {
+    font-weight: bold;
 }
 
 .reservations-table th,
 .reservations-table td {
-    padding: 0.75rem;
+    padding: 1rem; /* Increased padding for better spacing */
     border: 1px solid #e0e0e0;
     text-align: left;
-    font-size: 0.95rem;
+    font-size: 1rem; /* Larger font for readability */
     color: #333;
 }
 
 .reservations-table th {
     background-color: #f5f5f5;
     font-weight: bold;
+    text-transform: uppercase; /* Added uppercase for headers */
+    color: #555;
+}
+
+.reservations-table td {
+    vertical-align: middle; /* Aligns text vertically in the middle */
 }
 
 .status {
@@ -64,4 +70,32 @@ h2 {
 .status.inactive {
     color: #fff;
     background-color: #d32f2f;
+}
+
+.license-thumbnail {
+    width: 50px;
+    height: auto;
+    border-radius: 50%; /* Changed to circular thumbnails */
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+    object-fit: cover;
+    margin: auto;
+    display: block; /* Centers the image */
+}
+
+.goto-register-button {
+    margin-top: 1.5rem; /* Added spacing above the button */
+    padding: 0.75rem 1.5rem;
+    font-size: 1rem;
+    font-weight: bold;
+    color: #e63946;
+    background-color: transparent;
+    border: 2px solid #e63946;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: all 0.3s ease;
+}
+
+.goto-register-button:hover {
+    background-color: #e63946;
+    color: #fff;
 }
