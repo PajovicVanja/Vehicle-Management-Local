@@ -26,6 +26,7 @@ function Reserve({ token, setShowReserve, setShowAddVehicle }) {
   const canAddVehicle = role === 'Admin';
   const canRepairVehicle = role === 'Admin';
   const canDeleteVehicle = role === 'Admin';
+  const canViewAllRepairs = role === 'Admin';
   const canViewAllReservations = role === 'Admin' || role === 'Manager';
 
   const fetchVehicles = async () => {
@@ -78,6 +79,35 @@ function Reserve({ token, setShowReserve, setShowAddVehicle }) {
     } else {
       console.error('Error deleting vehicle:', result.error);
     }
+  }
+
+  function vehicleTableRow(vehicle, status){
+    return(
+      <tr key={vehicle.vehicleId} className={status}>
+        <td>{vehicle.vehicleName}</td>
+        <td>{vehicle.engine} - {vehicle.hp} HP</td>
+        <td>
+          <div className="vehicle-actions">
+            <button onClick={() => handleView(vehicle)} className="view-button">
+                View
+            </button>
+            <button onClick={() => handleReserve(vehicle.vehicleId)} className="reserve-button">
+                Reserve
+            </button>
+            {canRepairVehicle ? (
+              <button onClick={() => handleRepair(vehicle.vehicleId)} className="view-button">
+                  Repair
+              </button>) 
+            : (<></>)}
+            {canDeleteVehicle ? (
+              <button onClick={() => handleDelete(vehicle.vehicleId)} className="reserve-button">
+                  Delete
+              </button>) 
+            : (<></>)}
+          </div>
+        </td>
+      </tr>
+    )
   }
 
   // Reserve a vehicle, form
@@ -144,32 +174,14 @@ function Reserve({ token, setShowReserve, setShowAddVehicle }) {
               </thead>
               <tbody>
                   {vehicles.map((vehicle, index) => (
-                    (vehicle.status === 'available' || canViewAllReservations) ? (
-                      <tr key={vehicle.vehicleId}>
-                          <td>{vehicle.vehicleName}</td>
-                          <td>{vehicle.engine} - {vehicle.hp} HP</td>
-                          <td>
-                            <div className="vehicle-actions">
-                              <button onClick={() => handleView(vehicle)} className="view-button">
-                                  View
-                              </button>
-                              <button onClick={() => handleReserve(vehicle.vehicleId)} className="reserve-button">
-                                  Reserve
-                              </button>
-                              {canRepairVehicle ? (
-                                <button onClick={() => handleRepair(vehicle.vehicleId)} className="view-button">
-                                    Repair
-                                </button>) 
-                              : (<></>)}
-                              {canDeleteVehicle ? (
-                                <button onClick={() => handleDelete(vehicle.vehicleId)} className="reserve-button">
-                                    Delete
-                                </button>) 
-                              : (<></>)}
-                            </div>
-                          </td>
-                      </tr>
-                    ): (<></>)
+                    (vehicle.status === 'available') ? vehicleTableRow(vehicle, 'available') : (<></>)
+                  ))}
+                  {vehicles.map((vehicle, index) => (
+                    (vehicle.status === 'repair' && canViewAllRepairs) ? vehicleTableRow(vehicle, 'repair') : (<></>)
+                  ))}
+                  {vehicles.map((vehicle, index) => (
+                    (vehicle.status != 'repair' && vehicle.status != 'available' && canViewAllReservations) 
+                    ? vehicleTableRow(vehicle, 'reserved') : (<></>)
                   ))}
               </tbody>
             </table>) 
@@ -180,14 +192,14 @@ function Reserve({ token, setShowReserve, setShowAddVehicle }) {
       <div className="button-group">
         <button onClick={() => setShowReserve(false)} className='goto-register-button'>Back to Dashboard</button>
         {canAddVehicle && (
-        <button onClick={() => setShowAddVehicle(true)} className="reserve-button">
+        <button onClick={() => setShowAddVehicle(true)} className="goto-register-button">
           Add Vehicle
         </button>
         )}
         {canViewAllReservations && (
         <button
             onClick={() => setShowReserve(false)}
-            className="view-reservations-button"
+            className="goto-register-button"
         >
           View All Reservations
         </button>
