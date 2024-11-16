@@ -3,6 +3,7 @@ const express = require('express');
 const cors = require('cors');
 const authRoutes = require('./routes/authRoutes');
 const vehicleRoutes = require('./routes/vehicleRoutes');
+const reimbursementRoutes = require('./routes/reimbursementRoutes');
 
 const app = express();
 
@@ -13,6 +14,8 @@ app.use(express.json()); // Parse incoming JSON data
 
 app.use('/api/auth', authRoutes);
 app.use('/api/vehicle', vehicleRoutes);
+app.use('/api/reimbursements', reimbursementRoutes);
+
 
 const PORT = process.env.PORT || 5000;
 app.listen(PORT, () => {

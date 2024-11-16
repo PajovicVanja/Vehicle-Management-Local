@@ -2,36 +2,42 @@
 import React, { useState } from 'react';
 import '../CSS/LoginRegister.css';
 import { auth, createUserWithEmailAndPassword } from '../firebaseClient';
-import { db } from '../firebaseClient'; // Import Firestore
-import { doc, setDoc } from 'firebase/firestore'; // Firestore functions for creating a document
+import { db } from '../firebaseClient';
+import { doc, setDoc } from 'firebase/firestore';
+import UploadLicense from './UploadLicense'; // Import UploadLicense component
 
 function Register({ setToken }) {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
+  const [showUploadLicense, setShowUploadLicense] = useState(false); // New state
 
   const handleRegister = async (e) => {
     e.preventDefault();
     try {
-      // Register using Firebase Authentication
       const userCredential = await createUserWithEmailAndPassword(auth, email, password);
       const user = userCredential.user;
 
-      // Generate a token and set it
       const token = await user.getIdToken();
       setToken(token);
 
-      // Add the user to Firestore 'users' collection
       await setDoc(doc(db, 'users', user.uid), {
         email: user.email,
+        role: 'Driver', // Default role
         createdAt: new Date(),
       });
 
+      setShowUploadLicense(true); // Show the license upload UI
       setError('');
     } catch (error) {
-      setError(error.message); // Display error message if registration fails
+      setError(error.message);
     }
   };
+
+  if (showUploadLicense) {
+    // Render UploadLicense component after successful registration
+    return <UploadLicense token={auth.currentUser.accessToken} />;
+  }
 
   return (
     <div className="login-container">
@@ -51,9 +57,11 @@ function Register({ setToken }) {
           onChange={(e) => setPassword(e.target.value)}
           className="login-input"
         />
-        <button type="submit" className="login-button">Register</button>
+        <button type="submit" className="login-button">
+          Register
+        </button>
       </form>
-      {error && <p  className="error-message">{error}</p>}
+      {error && <p className="error-message">{error}</p>}
     </div>
   );
 }

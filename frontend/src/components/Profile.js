@@ -1,18 +1,21 @@
 // components/Profile.js
 import React, { useState, useEffect } from 'react';
 import '../CSS/Profile.css';
-import { getUserData } from '../services/authService';
+import { getUserData, uploadLicense } from '../services/authService';
 
 function Profile({ token, setShowProfile }) {
   const [email, setEmail] = useState('');
+  const [role, setRole] = useState('');
   const [licenseImageUrl, setLicenseImageUrl] = useState(null);
   const [message, setMessage] = useState('');
+  const [file, setFile] = useState(null);
 
   useEffect(() => {
     const fetchData = async () => {
       const result = await getUserData(token);
       if (result.success) {
         setEmail(result.data.email);
+        setRole(result.data.role || 'Driver'); // Default role to Driver
         setLicenseImageUrl(result.data.licenseImageUrl);
       } else {
         setMessage(result.error || 'Failed to load profile data');
@@ -21,10 +24,30 @@ function Profile({ token, setShowProfile }) {
     fetchData();
   }, [token]);
 
+  const handleFileChange = (e) => {
+    setFile(e.target.files[0]);
+  };
+
+  const handleUpload = async (e) => {
+    e.preventDefault();
+    if (file) {
+      const result = await uploadLicense(file, token);
+      if (result.success) {
+        setLicenseImageUrl(result.message); // Update the profile with the uploaded URL
+        setMessage('License uploaded successfully');
+      } else {
+        setMessage(result.error || 'Failed to upload license');
+      }
+    } else {
+      setMessage('Please select a file to upload');
+    }
+  };
+
   return (
     <div className="profile-container">
       <h2>Profile</h2>
       <p className="profile-email">Email: {email}</p>
+      <p className="profile-role">Role: {role}</p>
       {licenseImageUrl ? (
         <div>
           <h3>Your Driver’s License</h3>
@@ -33,7 +56,18 @@ function Profile({ token, setShowProfile }) {
       ) : (
         <p className="no-license">No driver's license uploaded yet.</p>
       )}
-      <button onClick={() => setShowProfile(false)} className='goto-register-button'>Back to Dashboard</button>
+      <div>
+        <h3>Update Driver’s License</h3>
+        <form onSubmit={handleUpload}>
+          <input type="file" onChange={handleFileChange} />
+          <button type="submit" className="upload-button">
+            Upload License
+          </button>
+        </form>
+      </div>
+      <button onClick={() => setShowProfile(false)} className="goto-register-button">
+        Back to Dashboard
+      </button>
       {message && <p className="profile-message">{message}</p>}
     </div>
   );
