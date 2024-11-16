@@ -17,8 +17,6 @@ function Reserve({ token, setShowReserve, setShowAddVehicle, setShowAllCarReserv
   const [role, setRole] = useState('');
   const [uid, setUid] = useState(null);
   const [userReservation, setUserReservation] = useState(null);
-  //const [load1,setLoad1] = useState(false);
-  //const [load2,setLoad2] = useState(false);
 
   useEffect(() => {
     const fetchData = async () => {
@@ -43,20 +41,8 @@ function Reserve({ token, setShowReserve, setShowAddVehicle, setShowAllCarReserv
     if (reservations.length > 0 && uid) {
       const userRes = reservations.find(res => res.userId === uid);
       setUserReservation(userRes);
-      //console.log('User reservation:', userRes);
     }
   }, [reservations, uid]);
-
-  /*useEffect(() => {
-    console.log('fetch reservations load1');
-    fetchAllReservations();
-    setLoad2(true);
-  }, [load1]);
-
-  useEffect(() => {
-    console.log('fetch vehicles load2');
-    fetchVehicles();
-  }, [load2]);*/
 
   const canAddVehicle = role === 'Admin';
   const canRepairVehicle = role === 'Admin';
@@ -68,7 +54,6 @@ function Reserve({ token, setShowReserve, setShowAddVehicle, setShowAllCarReserv
     setLoading(true); // Start loading
     try {
       const vehicleSnapshot = await getVehicleData(token);
-      //console.log(vehicleSnapshot.data);
       if (vehicleSnapshot.success) {
         await fetchAllReservations();
         setVehicles(vehicleSnapshot.data);
@@ -87,7 +72,6 @@ function Reserve({ token, setShowReserve, setShowAddVehicle, setShowAllCarReserv
     setLoading(true); // Start loading
     try {
       const vehicleSnapshot = await getReservationData(token);
-      //console.log(vehicleSnapshot.data);
       if (vehicleSnapshot.success) {
         setReservations(vehicleSnapshot.data);
       } else {
@@ -100,10 +84,6 @@ function Reserve({ token, setShowReserve, setShowAddVehicle, setShowAllCarReserv
       setLoading(false); // Stop loading
     }
   };
-
-  const fetchUserReservation = () => {
-    setUserReservation(reservations.find(res => res.userId === uid));
-  }
   
   const fetchReservation = async (resId) => {
     try {
@@ -284,7 +264,6 @@ function Reserve({ token, setShowReserve, setShowAddVehicle, setShowAllCarReserv
                       if(canViewAllReservations) return vehicleTableRow(vehicle, 'reserved');
 
                       // Check reservation data fetched previously
-                      //const reservation = reservations.find(res => res.reservationId === vehicle.status);
                       if (userReservation && userReservation.reservationId === vehicle.status) {
                         return vehicleTableRow(vehicle, 'reserved');
                       }
