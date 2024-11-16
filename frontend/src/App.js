@@ -1,4 +1,3 @@
-// App.js
 import React, { useState, useEffect } from 'react';
 import './App.css';
 import Register from './components/Register';
@@ -11,15 +10,18 @@ import CurrentReservationsAdmin from './components/CurrentReservationsAdmin';
 import { getUserData } from './services/authService';
 
 function App() {
-  const [token, setToken] = useState(null);
-  const [role, setRole] = useState('');
+  const [token, setToken] = useState(null); // Auth token
+  const [role, setRole] = useState(''); // User role (Driver, Admin, Manager)
+  const [licenseUploaded, setLicenseUploaded] = useState(false); // Driver's license status
+
+  // UI Navigation States
   const [showRegister, setShowRegister] = useState(false);
   const [showProfile, setShowProfile] = useState(false);
-  const [showReserve, setShowReserve] = useState(false);
+  const [showReserve, setShowReserve] = useState(false); // Used for viewing vehicles
   const [showAddVehicle, setShowAddVehicle] = useState(false);
   const [showAllCarReservations, setShowAllCarReservations] = useState(false);
-  const [licenseUploaded, setLicenseUploaded] = useState(false);
 
+  // Fetch role and license status after login
   useEffect(() => {
     const fetchRole = async () => {
       if (token) {
@@ -38,6 +40,7 @@ function App() {
       <h1>Vehicle Management System</h1>
       {!token ? (
         <>
+          {/* Register or Login UI */}
           {showRegister ? (
             <Register setToken={setToken} />
           ) : (
@@ -57,6 +60,7 @@ function App() {
           token={token}
           setShowReserve={setShowReserve}
           setShowAddVehicle={setShowAddVehicle}
+          canReserve={role === 'Driver'} // Pass prop to control reservation ability
         />
       ) : showProfile ? (
         <Profile token={token} setShowProfile={setShowProfile} />
@@ -67,6 +71,7 @@ function App() {
         />
       ) : (
         <div className="menu-group">
+          {/* Show UploadLicense for Drivers who haven't uploaded it */}
           {role === 'Driver' && !licenseUploaded && (
             <UploadLicense token={token} />
           )}
@@ -81,8 +86,9 @@ function App() {
               onClick={() => setShowReserve(true)}
               className="goto-register-button"
             >
-              Reserve Vehicle
+              {role === 'Driver' ? 'Reserve Vehicle' : 'View Vehicles'}
             </button>
+            {/* Admin and Manager options */}
             {(role === 'Admin' || role === 'Manager') && (
               <button
                 onClick={() => setShowAllCarReservations(true)}
@@ -93,8 +99,13 @@ function App() {
             )}
             <button
               onClick={() => {
+                // Log out user
                 setToken(null);
                 setRole('');
+                setShowProfile(false);
+                setShowReserve(false);
+                setShowAddVehicle(false);
+                setShowAllCarReservations(false);
               }}
               className="goto-register-button"
             >

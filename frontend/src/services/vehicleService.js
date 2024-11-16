@@ -62,16 +62,36 @@ export const repairVehicle = async (vehicleId,token) => {
   }
 };
 
-export const reserveVehicle = async (vehicleId, reserveId, token) => {
+export const reserveVehicle = async (vehicleId, reservationData, token) => {
   try {
-    const response = await fetch(`${API_URL}/vehicles/${vehicleId}/reserve/${reserveId}`, {
+    const response = await fetch(`${API_URL}/vehicles/${vehicleId}/reserve`, {
       method: 'PATCH',
       headers: {
         'Content-Type': 'application/json',
         Authorization: `Bearer ${token}`,
       },
+      body: JSON.stringify(reservationData), // Send reservation data in the body
     });
 
+    const data = await response.json();
+    if (response.ok) {
+      return { success: true, data };
+    } else {
+      return { success: false, error: data.message };
+    }
+  } catch (error) {
+    return { success: false, error: error.message };
+  }
+};
+
+
+export const getAdminReservations = async (token) => {
+  try {
+    const response = await fetch(`${API_URL}/admin-reservations`, {
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+    });
     const data = await response.json();
     if (response.ok) {
       return { success: true, data };
