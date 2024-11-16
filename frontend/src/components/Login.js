@@ -13,8 +13,14 @@ function Login({ setToken }) {
     try {
       // Log in using Firebase Authentication
       const userCredential = await signInWithEmailAndPassword(auth, email, password);
-      const token = await userCredential.user.getIdToken();
-      setToken(token); // Set the token to be used in the app
+      const user = userCredential.user;
+
+      // Fetch the token and role
+      const token = await user.getIdTokenResult();
+      const role = token.claims.role || 'Driver'; // Default to Driver if no role
+      
+      localStorage.setItem('userRole', role); // Save role locally for role-based UI
+      setToken(token.token); // Set token to be used in the app
       setError('');
     } catch (error) {
       setError(error.message); // Display error message if login fails

@@ -1,20 +1,19 @@
 // controllers/authController.js
 const { db } = require('../config/firebaseConfig');
 const cloudinary = require('../config/cloudinaryConfig'); // Import configured Cloudinary instance
+const { setUserRole } = require('../services/setUserRole');
 
 async function uploadLicenseImage(req, res) {
-  const { uid } = req.user; // Assuming user is authenticated and uid is available
+  const { uid } = req.user;
   const file = req.file;
 
-  console.log('Received UID in uploadLicenseImage:', uid); // Log UID for debugging
+  console.log('Received UID in uploadLicenseImage:', uid);
 
   if (!file) {
-    console.log('No file uploaded or file path missing');
     return res.status(400).json({ message: 'No file uploaded or file path missing' });
   }
 
   try {
-    // Upload to Cloudinary
     const result = await new Promise((resolve, reject) => {
       const uploadStream = cloudinary.uploader.upload_stream(
         { folder: `licenses/${uid}` },
@@ -23,24 +22,18 @@ async function uploadLicenseImage(req, res) {
           else resolve(result);
         }
       );
-      uploadStream.end(file.buffer); // Use buffer as file is stored in memory
+      uploadStream.end(file.buffer);
     });
 
     const imageUrl = result.secure_url;
-    console.log('Image uploaded to Cloudinary. URL:', imageUrl); // Log Cloudinary URL
 
-    // Check if user document exists before updating
     const userDocRef = db.collection('users').doc(uid);
     const userDoc = await userDocRef.get();
     if (!userDoc.exists) {
-      console.log('User document not found for UID:', uid); // Log UID if document is missing
       return res.status(404).json({ message: 'User document not found' });
     }
 
-    // Update the Firestore document with the image URL
     await userDocRef.update({ licenseImageUrl: imageUrl });
-    console.log('User document updated successfully with license image URL');
-
     res.status(200).json({ message: 'License image uploaded successfully', imageUrl });
   } catch (error) {
     console.error('Error during image upload:', error);
@@ -60,6 +53,7 @@ async function getProfile(req, res) {
     const userData = userDoc.data();
     res.status(200).json({
       email: userData.email,
+      role: userData.role || 'Driver',
       licenseImageUrl: userData.licenseImageUrl || null,
     });
   } catch (error) {
@@ -68,4 +62,24 @@ async function getProfile(req, res) {
   }
 }
 
-module.exports = { uploadLicenseImage, getProfile };
+async function registerUser(req, res) {
+  const { email, password, role } = req.body;
+
+  try {
+    const user = await admin.auth().createUser({ email, password });
+    await setUserRole(user.uid, role || 'Driver'); // Default role is Driver
+
+    await db.collection('users').doc(user.uid).set({
+      email,
+      role: role || 'Driver',
+      createdAt: new Date(),
+    });
+
+    res.status(201).json({ message: 'User registered successfully' });
+  } catch (error) {
+    console.error('Error registering user:', error);
+    res.status(500).json({ message: 'Registration failed', error: error.message });
+  }
+}
+
+module.exports = { uploadLicenseImage, getProfile, registerUser };
