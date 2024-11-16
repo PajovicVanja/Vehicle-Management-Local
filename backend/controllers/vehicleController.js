@@ -31,7 +31,7 @@ async function getVehicles(req,res){
 
 async function getVehicle(req,res){
   const { uid } = req.user; // Assuming user is authenticated and uid is available
-  console.log('Received UID in getVehicles:', uid); // Log UID for debugging
+  console.log('Received UID in getVehicle:', uid); // Log UID for debugging
 
   const { vehicleId } = req.params;
 
@@ -52,7 +52,7 @@ async function getVehicle(req,res){
 
 async function repairVehicle(req, res) {
   const { uid } = req.user; // Assuming user is authenticated and uid is available
-  console.log('Received UID in getVehicles:', uid); // Log UID for debugging
+  console.log('Received UID in repairVehicle:', uid); // Log UID for debugging
 
   const { vehicleId } = req.params;  // Get the vehicle ID from the route
   
@@ -92,8 +92,8 @@ async function repairVehicle(req, res) {
 
 async function reserveVehicle(req, res) {
   const { uid } = req.user; // Assuming user is authenticated and uid is available
-  console.log('Received UID in getVehicles:', uid); // Log UID for debugging
-  const { vehicleId } = req.params;
+  console.log('Received UID in reserveVehicle:', uid); // Log UID for debugging
+  const { vehicleId, reserveId } = req.params;
 
   try {
       // Find the specific vehicle document by its ID
@@ -110,12 +110,13 @@ async function reserveVehicle(req, res) {
 
       // Update the vehicle status
       if (vehicleData.status === 'available') {
-        await vehicleRef.update({ status: uid });
+        await vehicleRef.update({ status: reserveId });
       }
       else if (vehicleData.status === 'repair') { //cannot reserve vehicle if it is in repair state
         return res.status(400).json({ message: 'Cannot change status, vehicle is on repair.' });
       }
-      else{ // if the status is a uid, we want to un-reserve it, so set it back to 'available'.
+      else{ // if the status is a reserveId, we want to un-reserve it, so set it back to 'available'.
+        //TODO: only allow this if the user is an admin, or the same user, who made the reservation
         await vehicleRef.update({ status: 'available' });
       }
 
@@ -128,7 +129,7 @@ async function reserveVehicle(req, res) {
 
 async function deleteVehicle(req, res) {
   const { uid } = req.user; // Assuming user is authenticated and uid is available
-  console.log('Received UID in getVehicles:', uid); // Log UID for debugging
+  console.log('Received UID in deleteVehicle:', uid); // Log UID for debugging
 
   const { vehicleId } = req.params;
   console.log('Deleting vehicle:', vehicleId); 
