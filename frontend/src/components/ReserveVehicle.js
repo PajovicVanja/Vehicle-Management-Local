@@ -65,6 +65,7 @@ function Reserve({ token, setShowReserve, setShowAddVehicle, setShowAllCarReserv
       setError(error);
     } finally {
       setLoading(false); // Stop loading
+      //console.log('This is the user reservation: ', userReservation);
     }
   };
   
@@ -112,7 +113,7 @@ function Reserve({ token, setShowReserve, setShowAddVehicle, setShowAllCarReserv
       result = await deleteReservation(reservation.reservationId, token);
       if (result.success) {
         console.log(`Removed ${reservation.reservationId} reservation.`);
-
+        setUserReservation(null);
         // refresh the list of vehicles here
         fetchVehicles();
       } else {
@@ -120,7 +121,7 @@ function Reserve({ token, setShowReserve, setShowAddVehicle, setShowAllCarReserv
       }
 
       // refresh the list of vehicles here
-      fetchVehicles();
+      //fetchVehicles();
     } else {
       console.error(`Failed to update vehicle status for ID: ${vehicle.vehicleId}`);
     }

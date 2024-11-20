@@ -57,7 +57,7 @@ function ReserveVehicleForm({ token, reserveVehicleId, setReserveVehicleId, fetc
 
     try {
       // Add the document with the custom ID and data
-      await setDoc(reservationRef, newReservation);
+      //await setDoc(reservationRef, newReservation);
       console.log(`[ReserveVehicleForm] Added reservation with ID: ${reservationId}`);
       setReserveVehicleId(null);
 
