@@ -6,7 +6,7 @@ import { getReservation, getReservationData, deleteReservation } from '../servic
 import ReserveVehicleForm from '../components/ReserveVehicleForm';
 import { getAuth } from 'firebase/auth'; // Import Firebase Authentication
 
-function Reserve({ token, setShowReserve, setShowAddVehicle, setShowAllCarReservations, setUserReservationReset }) {
+function Reserve({ token, setShowReserve, setShowAddVehicle, setShowAllCarReservations, userReservationReset }) {
   const [message, setMessage] = useState('');
   const [vehicles, setVehicles] = useState([]); 
   const [reservations, setReservations] = useState([]); 
@@ -235,7 +235,7 @@ function Reserve({ token, setShowReserve, setShowAddVehicle, setShowAllCarReserv
       </table>
       <button onClick={() => {
         setViewVehicle(null);
-        setUserReservationReset(null);
+        userReservationReset(null);
         }} className='goto-register-button'>Back to vehicle list</button>
     </div>
   )
@@ -283,7 +283,7 @@ function Reserve({ token, setShowReserve, setShowAddVehicle, setShowAllCarReserv
       <div className="button-group">
         <button onClick={() => {
           setShowReserve(false);
-          setUserReservationReset(null);
+          userReservationReset(null);
         }} className='goto-register-button'>Back to Dashboard</button>
         {canAddVehicle && (
         <button onClick={() => setShowAddVehicle(true)} className="goto-register-button">
