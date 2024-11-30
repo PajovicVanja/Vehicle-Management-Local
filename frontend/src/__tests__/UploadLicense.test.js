@@ -1,4 +1,4 @@
-// __tests__/UploadLicense.test.js
+// __tests__/UploadLicense.test.js test
 import React from 'react';
 import { render, screen } from '@testing-library/react';
 import UploadLicense from '../components/UploadLicense';
