@@ -10,18 +10,21 @@ function Profile({ token, setShowProfile }) {
   const [message, setMessage] = useState('');
   const [file, setFile] = useState(null);
 
+  // Function to fetch and update user data
+  const fetchUserData = async () => {
+    const result = await getUserData(token);
+    if (result.success) {
+      setEmail(result.data.email);
+      setRole(result.data.role || 'Driver'); // Default role to Driver
+      setLicenseImageUrl(result.data.licenseImageUrl);
+    } else {
+      setMessage(result.error || 'Failed to load profile data');
+    }
+  };
+
+  // Initial data fetch
   useEffect(() => {
-    const fetchData = async () => {
-      const result = await getUserData(token);
-      if (result.success) {
-        setEmail(result.data.email);
-        setRole(result.data.role || 'Driver'); // Default role to Driver
-        setLicenseImageUrl(result.data.licenseImageUrl);
-      } else {
-        setMessage(result.error || 'Failed to load profile data');
-      }
-    };
-    fetchData();
+    fetchUserData();
   }, [token]);
 
   const handleFileChange = (e) => {
@@ -33,8 +36,8 @@ function Profile({ token, setShowProfile }) {
     if (file) {
       const result = await uploadLicense(file, token);
       if (result.success) {
-        setLicenseImageUrl(result.message); // Update the profile with the uploaded URL
         setMessage('License uploaded successfully');
+        fetchUserData(); // Fetch the updated user data immediately after upload
       } else {
         setMessage(result.error || 'Failed to upload license');
       }
