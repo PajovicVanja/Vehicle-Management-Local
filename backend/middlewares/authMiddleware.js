@@ -1,6 +1,15 @@
 const { admin, db } = require('../config/firebaseConfig');
 
 const verifyAuthToken = async (req, res, next) => {
+  // Bypass token verification in test environment
+  if (process.env.NODE_ENV === 'test') {
+    req.user = {
+      uid: 'mock-user-id',
+      role: 'Admin', // Mock role
+    };
+    return next();
+  }
+
   const token = req.headers.authorization?.split(' ')[1];
 
   if (!token) {
