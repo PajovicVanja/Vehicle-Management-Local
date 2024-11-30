@@ -36,9 +36,18 @@ jobs:
 
     - name: Set up environment variables
       run: |
-        echo "${{ secrets.ENV_VARS }}" > backend/.env
-      env:
-        ENV_VARS: ${{ secrets.ENV_VARS }}
+        echo "FIREBASE_PROJECT_ID=${{ vars.FIREBASE_PROJECT_ID }}" >> $GITHUB_ENV
+        echo "FIREBASE_AUTH_URI=${{ vars.FIREBASE_AUTH_URI }}" >> $GITHUB_ENV
+        echo "FIREBASE_CLIENT_EMAIL=${{ vars.FIREBASE_CLIENT_EMAIL }}" >> $GITHUB_ENV
+        echo "FIREBASE_CLIENT_ID=${{ vars.FIREBASE_CLIENT_ID }}" >> $GITHUB_ENV
+        echo "FIREBASE_TOKEN_URI=${{ vars.FIREBASE_TOKEN_URI }}" >> $GITHUB_ENV
+        echo "FIREBASE_PRIVATE_KEY=${{ secrets.FIREBASE_PRIVATE_KEY }}" >> $GITHUB_ENV
+        echo "CLOUDINARY_CLOUD_NAME=${{ vars.CLOUDINARY_CLOUD_NAME }}" >> $GITHUB_ENV
+        echo "CLOUDINARY_API_KEY=${{ vars.CLOUDINARY_API_KEY }}" >> $GITHUB_ENV
+        echo "CLOUDINARY_API_SECRET=${{ secrets.CLOUDINARY_API_SECRET }}" >> $GITHUB_ENV
+
+    - name: Debug environment variables
+      run: printenv | grep FIREBASE
 
     - name: Run tests with coverage
       run: |
