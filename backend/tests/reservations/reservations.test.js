@@ -1,19 +1,15 @@
 const request = require('supertest');
 const app = require('../../server');
-const { setupTestData, cleanupTestData } = require('../setup');
+const { setupTestData } = require('../setup');
 
 jest.mock('../../middlewares/authMiddleware', () => (req, res, next) => {
-  req.user = { uid: 'mock-user-id', role: 'Admin' }; // Mock user data
+  req.user = { uid: 'mock-user-id', role: 'Admin' };
   next();
 });
 
 describe('Reservation Tests', () => {
   beforeAll(async () => {
     await setupTestData();
-  });
-
-  afterAll(async () => {
-    await cleanupTestData();
   });
 
   test('Fetch All Reservations (Admin)', async () => {
