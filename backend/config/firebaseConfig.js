@@ -1,9 +1,13 @@
+// config/firebaseConfig.js
+
 const admin = require('firebase-admin');
 
+// Ensure private key is available
 if (!process.env.FIREBASE_PRIVATE_KEY) {
   throw new Error('Missing FIREBASE_PRIVATE_KEY in .env file');
 }
 
+// Initialize Firebase Admin SDK
 if (!admin.apps.length) {
   admin.initializeApp({
     credential: admin.credential.cert({
@@ -20,6 +24,9 @@ if (!admin.apps.length) {
     databaseURL: `https://${process.env.FIREBASE_PROJECT_ID}.firebaseio.com`,
   });
 }
+
+// Debugging Firebase initialization
+console.log('Firebase initialized:', admin.apps.length);
 
 const db = admin.firestore();
 
