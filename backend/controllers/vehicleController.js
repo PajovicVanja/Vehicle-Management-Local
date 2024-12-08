@@ -1,3 +1,4 @@
+const { report } = require('..');
 const { db } = require('../config/firebaseConfig');
 
 async function getVehicles(req,res){
@@ -61,7 +62,6 @@ async function repairVehicle(req, res) {
     const vehicleRef = db.collection('vehicles').doc(vehicleId);
     const docSnapshot = await vehicleRef.get();
 
-    // Check if the vehicle exists
     if (!docSnapshot.exists) {
       return res.status(404).json({ message: 'Vehicle not found' });
     }
@@ -70,13 +70,11 @@ async function repairVehicle(req, res) {
     const vehicleData = docSnapshot.data();
     let newStatus;
 
-    // Toggle the status based on current value
     if (vehicleData.status === 'available') {
       newStatus = 'repair';
     } else if (vehicleData.status === 'repair') {
       newStatus = 'available';
     } else {
-      // If status is anything else, do nothing
       return res.status(400).json({ message: 'Cannot change status, vehicle is reserved.' });
     }
 
@@ -89,6 +87,8 @@ async function repairVehicle(req, res) {
     res.status(500).json({ message: 'Error updating vehicle status', error: error.message });
   }
 }
+
+
 
 async function unreserveVehicle(req,res){
   const { uid } = req.user; // Assuming user is authenticated and uid is available
@@ -325,9 +325,89 @@ async function getAdminReservations(req, res) {
   }
 }
 
+async function reportVehicleIssue(req, res) {
+  console.log('Received request to report issue:', req.body); // Log request body
+  console.log('Authenticated user:', req.user); // Log authenticated user
 
+  const { uid } = req.user; // Authenticated user's UID
+  const { vehicleId } = req.params; // Vehicle ID from route parameters
+  const { description } = req.body; // Issue description from request body
 
+  if (!description) {
+    return res.status(400).json({ message: 'Description is required.' });
+  }
 
+  try {
+    // Log vehicle ID and description for debugging
+    console.log('Vehicle ID:', vehicleId);
+    console.log('Description:', description);
+
+    // Get the vehicle document from Firestore
+    const vehicleRef = db.collection('vehicles').doc(vehicleId);
+    const vehicleDoc = await vehicleRef.get();
+
+    if (!vehicleDoc.exists) {
+      return res.status(404).json({ message: 'Vehicle not found.' });
+    }
+
+    const vehicleData = vehicleDoc.data();
+
+    // Add the issue to the "malfunctions" collection
+    const malfunctionRef = db.collection('malfunctions').doc();
+    await malfunctionRef.set({
+      vehicleId,
+      userId: uid,
+      description,
+      status: 'Pending', // Default status
+      createdAt: new Date(),
+    });
+
+    console.log('Malfunction logged successfully'); // Confirm malfunction logged
+
+    // Update the vehicle's status to "repair"
+    await vehicleRef.update({ status: 'repair' });
+
+    console.log('Vehicle status updated to "repair"'); // Confirm status update
+
+    // Delete the associated reservation
+    const reservationQuery = db
+      .collection('reservation')
+      .where('vehicleId', '==', vehicleId)
+      .where('status', '==', 'Active'); // Ensure only active reservations are deleted
+    const reservations = await reservationQuery.get();
+
+    if (!reservations.empty) {
+      const batch = db.batch();
+      reservations.forEach((doc) => batch.delete(doc.ref));
+      await batch.commit();
+      console.log('Associated reservation(s) deleted successfully');
+    } else {
+      console.log('No active reservations found for this vehicle.');
+    }
+
+    res.status(201).json({
+      message: `Issue reported for vehicle ${vehicleId}, status updated to "repair", and associated reservation deleted.`,
+    });
+  } catch (error) {
+    console.error('Error reporting vehicle issue:', error);
+    res.status(500).json({
+      message: 'Error reporting vehicle issue.',
+      error: error.message,
+    });
+  }
+}
+
+async function getMalfunctionData(req, res) {
+  try {
+    const snapshot = await db.collection('malfunctions').get();
+    const malfunctions = snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
+
+    res.status(200).json(malfunctions);
+  } catch (error) {
+    console.error('Error fetching malfunction data:', error);
+    res.status(500).json({ message: 'Error fetching malfunction data.', error: error.message });
+  }
+}
 
 module.exports = { getVehicles, repairVehicle, deleteVehicle, getVehicle, reserveVehicle, getVehicleReservations, 
-  reportMalfunction, getAdminReservations, unreserveVehicle  };
+  reportMalfunction, getAdminReservations, unreserveVehicle, reportVehicleIssue, getMalfunctionData };

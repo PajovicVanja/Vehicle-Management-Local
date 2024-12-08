@@ -62,6 +62,7 @@ export const repairVehicle = async (vehicleId,token) => {
   }
 };
 
+
 export const unreserveVehicle = async (vehicleId,token) => {
   try {
     const response = await fetch(`${API_URL}/vehicles/${vehicleId}/unreserve`, {
@@ -120,6 +121,54 @@ export const getAdminReservations = async (token) => {
       return { success: false, error: data.message };
     }
   } catch (error) {
+    return { success: false, error: error.message };
+  }
+};
+
+export const reportVehicleIssue = async (vehicleId, issueData, token) => {
+  console.log('Sending token:', token); // Log the token
+  console.log('Sending vehicle ID:', vehicleId); // Log the vehicle ID
+  console.log('Sending issue data:', issueData); // Log the issue data
+
+  try {
+    const response = await fetch(`${API_URL}/vehicles/${vehicleId}/report-issue`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${token}`, // Ensure token is sent
+      },
+      body: JSON.stringify(issueData), // Send issue data in the body
+    });
+
+    const data = await response.json();
+    console.log('Response data:', data); // Log response data
+    if (response.ok) {
+      return { success: true, data };
+    } else {
+      return { success: false, error: data.message };
+    }
+  } catch (error) {
+    console.error('Error in reportVehicleIssue service:', error);
+    return { success: false, error: error.message };
+  }
+};
+
+export const getMalfunctionData = async (token) => {
+  try {
+    const response = await fetch(`${API_URL}/malfunctions`, {
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+    });
+
+    const data = await response.json();
+    if (response.ok) {
+      return { success: true, data };
+    } else {
+      return { success: false, error: data.message };
+    }
+  } catch (error) {
+    console.error('Error fetching malfunction data:', error);
     return { success: false, error: error.message };
   }
 };

@@ -1,7 +1,7 @@
 const express = require('express');
 const verifyAuthToken = require('../middlewares/authMiddleware');
 const { getVehicles, repairVehicle, deleteVehicle, getVehicle, reserveVehicle, getVehicleReservations 
-    ,reportMalfunction, getAdminReservations , unreserveVehicle
+    ,reportMalfunction, getAdminReservations , unreserveVehicle, reportVehicleIssue, getMalfunctionData
  } = require('../controllers/vehicleController');
 
 const router = express.Router();
@@ -29,6 +29,10 @@ router.get('/reservations', verifyAuthToken, getVehicleReservations);
 router.post('/report-malfunction', verifyAuthToken, reportMalfunction);
 
 router.get('/admin-reservations', verifyAuthToken, getAdminReservations);
+
+router.post('/vehicles/:vehicleId/report-issue', verifyAuthToken, reportVehicleIssue);
+
+router.get('/malfunctions', verifyAuthToken, getMalfunctionData);
 
 
 module.exports = router;
