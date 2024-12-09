@@ -1,31 +1,42 @@
 const { db } = require('../config/firebaseConfig');
 
 module.exports.setupTestData = async () => {
-  const usersRef = db.collection('users');
-  const vehiclesRef = db.collection('vehicles');
+  try {
+    const usersRef = db.collection('users');
+    const vehiclesRef = db.collection('vehicles');
 
-  // Mock user
-  await usersRef.doc('mock-user-id').set({
-    email: 'testuser@example.com',
-    role: 'Admin',
-  });
+    // Mock user
+    const userSnapshot = await usersRef.doc('mock-user-id').get();
+    if (!userSnapshot.exists) {
+      console.log('Creating mock user...');
+      await usersRef.doc('mock-user-id').set({
+        email: 'testuser@example.com',
+        role: 'Admin',
+      });
+    } else {
+      console.log('Mock user already exists.');
+    }
 
-  // Mock vehicle
-  await vehiclesRef.doc('mock-vehicle-id').set({
-    vehicleId: 'mock-vehicle-id',
-    vehicleName: 'Test Vehicle',
-    status: 'available',
-  });
-};
+    // Mock vehicle
+    const vehicleSnapshot = await vehiclesRef.doc('mock-vehicle-id').get();
+    if (!vehicleSnapshot.exists) {
+      console.log('Creating mock vehicle...');
+      await vehiclesRef.doc('mock-vehicle-id').set({
+        vehicleId: 'mock-vehicle-id',
+        vehicleName: 'Test Vehicle',
+        status: 'available', // Vehicle starts as 'available'
+        color: 'Blue',
+        year: 2022,
+        engine: 'V6',
+        hp: 300,
+        image: 'mock-image-url',
+      });
+    } else {
+      console.log('Mock vehicle already exists.');
+    }
 
-module.exports.cleanupTestData = async () => {
-  const deleteCollection = async (collectionRef) => {
-    const snapshot = await collectionRef.get();
-    const batch = db.batch();
-    snapshot.docs.forEach((doc) => batch.delete(doc.ref));
-    await batch.commit();
-  };
-
-  await deleteCollection(db.collection('users'));
-  await deleteCollection(db.collection('vehicles'));
+    console.log('Setup complete!');
+  } catch (error) {
+    console.error('Error in setupTestData:', error.message);
+  }
 };

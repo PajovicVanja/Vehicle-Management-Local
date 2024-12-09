@@ -9,6 +9,10 @@ import {
 import { getReservationData, deleteReservation } from "../services/reservationService";
 import ReserveVehicleForm from "./ReserveVehicleForm";
 import ReportIssueForm from "./ReportIssueForm";
+import VehicleTable from "./VehicleTable";
+import VehicleDetail from "./VehicleDetail";
+import MalfunctionMessage from "./MalfunctionMessage";
+import ReservationControls from "./ReservationControls";
 import { getAuth } from "firebase/auth";
 
 function Reserve({
@@ -29,6 +33,19 @@ function Reserve({
   const [uid, setUid] = useState(null);
   const [userReservation, setUserReservation] = useState(null);
   const [reportIssueVehicleId, setReportIssueVehicleId] = useState(null);
+  const [showMessage, setShowMessage] = useState(null);
+
+  const canAddVehicle = role === "Admin";
+  const canRepairVehicle = role === "Admin";
+  const canDeleteVehicle = role === "Admin";
+  const canViewAllReservations = role === "Admin" || role === "Manager";
+
+  // Debugging: Log variables after all dependencies are declared
+  useEffect(() => {
+    console.log("Reserve Debug - Vehicles:", vehicles);
+    console.log("Reserve Debug - Can Repair Vehicle:", canRepairVehicle);
+    console.log("Reserve Debug - Handle View Message Function:", handleViewMessage);
+  }, [vehicles, canRepairVehicle]);
 
   useEffect(() => {
     const fetchData = async () => {
@@ -51,11 +68,6 @@ function Reserve({
       setUserReservation(userRes);
     }
   }, [reservations, uid]);
-
-  const canAddVehicle = role === "Admin";
-  const canRepairVehicle = role === "Admin";
-  const canDeleteVehicle = role === "Admin";
-  const canViewAllReservations = role === "Admin" || role === "Manager";
 
   const fetchVehicles = async () => {
     setLoading(true);
@@ -128,46 +140,9 @@ function Reserve({
     }
   };
 
-  const vehicleTableRow = (vehicle, status) => (
-    <tr key={vehicle.vehicleId} className={status}>
-      <td>{vehicle.vehicleName}</td>
-      <td>
-        {vehicle.engine} - {vehicle.hp} HP
-      </td>
-      <td>
-        <div className="vehicle-actions">
-          <button onClick={() => handleView(vehicle)} className="view-button">
-            View
-          </button>
-          {status === "available" && !userReservation && (
-            <button onClick={() => handleReserve(vehicle.vehicleId)} className="reserve-button">
-              Reserve
-            </button>
-          )}
-          {status !== "available" && userReservation?.vehicleId === vehicle.vehicleId && (
-            <>
-              <button onClick={() => removeReserve(vehicle)} className="reserve-button">
-                Remove Reserve
-              </button>
-              <button onClick={() => setReportIssueVehicleId(vehicle.vehicleId)} className="report-button">
-                Report Issue
-              </button>
-            </>
-          )}
-          {canRepairVehicle && status === "repair" && (
-            <button onClick={() => handleRepair(vehicle.vehicleId)} className="repair-button">
-              Repair
-            </button>
-          )}
-          {canDeleteVehicle && (
-            <button onClick={() => handleDelete(vehicle.vehicleId)} className="delete-button">
-              Delete
-            </button>
-          )}
-        </div>
-      </td>
-    </tr>
-  );
+  const handleViewMessage = (vehicleId) => {
+    setShowMessage(vehicleId);
+  };
 
   if (reserveVehicleId) {
     return (
@@ -182,47 +157,11 @@ function Reserve({
 
   if (viewVehicle) {
     return (
-      <div className="vehicle-detail">
-        <h2>{viewVehicle.vehicleName} Details</h2>
-        <img src={viewVehicle.image} alt={viewVehicle.vehicleName} />
-        <table className="vehicle-table">
-          <tbody>
-            <tr>
-              <td>Vehicle Name:</td>
-              <td>{viewVehicle.vehicleName}</td>
-            </tr>
-            <tr>
-              <td>Engine:</td>
-              <td>{viewVehicle.engine}</td>
-            </tr>
-            <tr>
-              <td>Horsepower:</td>
-              <td>{viewVehicle.hp} HP</td>
-            </tr>
-            <tr>
-              <td>Color:</td>
-              <td>{viewVehicle.color}</td>
-            </tr>
-            <tr>
-              <td>Year:</td>
-              <td>{viewVehicle.year}</td>
-            </tr>
-            <tr>
-              <td>Status:</td>
-              <td>{viewVehicle.status}</td>
-            </tr>
-          </tbody>
-        </table>
-        <button
-          onClick={() => {
-            setViewVehicle(null);
-            userReservationReset(null);
-          }}
-          className="goto-register-button"
-        >
-          Back to vehicle list
-        </button>
-      </div>
+      <VehicleDetail
+        viewVehicle={viewVehicle}
+        setViewVehicle={setViewVehicle}
+        userReservationReset={userReservationReset}
+      />
     );
   }
 
@@ -232,6 +171,16 @@ function Reserve({
         vehicleId={reportIssueVehicleId}
         setShowReportIssue={() => setReportIssueVehicleId(null)}
         fetchVehicles={fetchVehicles}
+      />
+    );
+  }
+
+  if (showMessage) {
+    return (
+      <MalfunctionMessage
+        vehicleId={showMessage}
+        setShowMessage={setShowMessage}
+        token={token} // Pass token for API calls
       />
     );
   }
@@ -246,43 +195,28 @@ function Reserve({
       ) : vehicles.length === 0 ? (
         <p>No vehicles found.</p>
       ) : (
-        <table className="vehicle-table">
-          <thead>
-            <tr>
-              <th>Vehicle Name</th>
-              <th>Engine</th>
-              <th>Actions</th>
-            </tr>
-          </thead>
-          <tbody>
-            {vehicles.map((vehicle) => vehicleTableRow(vehicle, vehicle.status))}
-          </tbody>
-        </table>
+        <VehicleTable
+          vehicles={vehicles}
+          userReservation={userReservation}
+          canRepairVehicle={canRepairVehicle}
+          canDeleteVehicle={canDeleteVehicle}
+          handleView={handleView}
+          handleReserve={handleReserve}
+          removeReserve={removeReserve}
+          setReportIssueVehicleId={setReportIssueVehicleId}
+          handleRepair={handleRepair}
+          handleDelete={handleDelete}
+          handleViewMessage={handleViewMessage}
+        />
       )}
-      <div className="button-group">
-        <button
-          onClick={() => {
-            setShowReserve(false);
-            userReservationReset(null);
-          }}
-          className="back-button"
-        >
-          Back to Dashboard
-        </button>
-        {canAddVehicle && (
-          <button onClick={() => setShowAddVehicle(true)} className="add-button">
-            Add Vehicle
-          </button>
-        )}
-        {canViewAllReservations && (
-          <button
-            onClick={() => setShowAllCarReservations(true)}
-            className="view-reservations-button"
-          >
-            View All Reservations
-          </button>
-        )}
-      </div>
+      <ReservationControls
+        canAddVehicle={canAddVehicle}
+        canViewAllReservations={canViewAllReservations}
+        setShowReserve={setShowReserve}
+        setShowAddVehicle={setShowAddVehicle}
+        setShowAllCarReservations={setShowAllCarReservations}
+        userReservationReset={userReservationReset}
+      />
       {message && <p className="profile-message">{message}</p>}
     </div>
   );

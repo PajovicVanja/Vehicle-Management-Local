@@ -25,32 +25,29 @@ function ReportIssueForm({ vehicleId, setShowReportIssue, fetchVehicles }) {
       const result = await reportVehicleIssue(vehicleId, { description: issueDescription }, token);
       if (result.success) {
         setMessage("Issue reported successfully.");
-        fetchVehicles(); // Refresh vehicles to reflect the updated status
-        setShowReportIssue(false); // Close the form after successful submission
+        fetchVehicles(); // Refresh the vehicle data
+        setShowReportIssue(null); // Close the form
       } else {
-        setMessage(result.error || "Failed to report the issue. Please try again.");
+        setMessage(result.error);
       }
     } catch (error) {
-      console.error("Error reporting vehicle issue:", error);
-      setMessage("An error occurred while reporting the issue.");
+      console.error("Error reporting issue:", error);
+      setMessage("Failed to report the issue. Please try again.");
     }
   };
 
   return (
-    <div className="report-issue-container">
-      <h2>Report Vehicle Issue</h2>
+    <div className="report-issue-form">
+      <h2>Report Issue</h2>
       <form onSubmit={handleReportIssueSubmit}>
-        <label htmlFor="issueDescription">Describe the Issue:</label>
         <textarea
-          id="issueDescription"
           value={issueDescription}
           onChange={(e) => setIssueDescription(e.target.value)}
-          placeholder="Describe the problem with the vehicle..."
+          placeholder="Describe the issue"
         />
-        <button type="submit" className="submit-button">Submit</button>
-        <button onClick={() => setShowReportIssue(false)} className="cancel-button">Cancel</button>
+        <button type="submit">Submit</button>
       </form>
-      {message && <p className="message">{message}</p>}
+      {message && <p className="error-message">{message}</p>}
     </div>
   );
 }

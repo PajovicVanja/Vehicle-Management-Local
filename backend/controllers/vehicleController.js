@@ -55,33 +55,51 @@ async function repairVehicle(req, res) {
   const { uid } = req.user; // Assuming user is authenticated and uid is available
   console.log('Received UID in repairVehicle:', uid); // Log UID for debugging
 
-  const { vehicleId } = req.params;  // Get the vehicle ID from the route
-  
+  const { vehicleId } = req.params; // Get the vehicle ID from the route
+  console.log('Vehicle ID for repair:', vehicleId); // Log Vehicle ID
+
   try {
     // Get the vehicle document from Firestore
     const vehicleRef = db.collection('vehicles').doc(vehicleId);
     const docSnapshot = await vehicleRef.get();
 
     if (!docSnapshot.exists) {
+      console.log('Vehicle not found:', vehicleId);
       return res.status(404).json({ message: 'Vehicle not found' });
     }
 
     // Get the current status of the vehicle
     const vehicleData = docSnapshot.data();
+    console.log('Current vehicle status:', vehicleData.status); // Log current status
     let newStatus;
 
-    if (vehicleData.status === 'available') {
-      newStatus = 'repair';
-    } else if (vehicleData.status === 'repair') {
+    if (vehicleData.status === 'repair') {
       newStatus = 'available';
     } else {
-      return res.status(400).json({ message: 'Cannot change status, vehicle is reserved.' });
+      console.log('Vehicle is not in repair state, cannot update status.');
+      return res.status(400).json({ message: 'Cannot change status, vehicle is not in repair.' });
     }
 
     // Update the status in Firestore
     await vehicleRef.update({ status: newStatus });
-    
-    res.status(200).json({ message: `Vehicle ${vehicleId} status updated to "${newStatus}".` });
+    console.log(`Vehicle status updated to: ${newStatus}`); // Log new status
+
+    // Delete the malfunction from the database
+    const malfunctionQuery = db.collection('malfunctions').where('vehicleId', '==', vehicleId);
+    const malfunctions = await malfunctionQuery.get();
+    if (!malfunctions.empty) {
+      const batch = db.batch();
+      malfunctions.forEach((doc) => {
+        console.log('Deleting malfunction:', doc.id); // Log malfunction ID
+        batch.delete(doc.ref);
+      });
+      await batch.commit();
+      console.log('Malfunction(s) deleted successfully');
+    } else {
+      console.log('No malfunctions found for the vehicle.');
+    }
+
+    res.status(200).json({ message: `Vehicle ${vehicleId} status updated to "${newStatus}" and malfunction(s) deleted.` });
   } catch (error) {
     console.error('Error updating vehicle status:', error);
     res.status(500).json({ message: 'Error updating vehicle status', error: error.message });
@@ -334,6 +352,7 @@ async function reportVehicleIssue(req, res) {
   const { description } = req.body; // Issue description from request body
 
   if (!description) {
+    console.log('Description is missing in the request.');
     return res.status(400).json({ message: 'Description is required.' });
   }
 
@@ -347,10 +366,12 @@ async function reportVehicleIssue(req, res) {
     const vehicleDoc = await vehicleRef.get();
 
     if (!vehicleDoc.exists) {
+      console.log('Vehicle not found:', vehicleId);
       return res.status(404).json({ message: 'Vehicle not found.' });
     }
 
     const vehicleData = vehicleDoc.data();
+    console.log('Vehicle data:', vehicleData);
 
     // Add the issue to the "malfunctions" collection
     const malfunctionRef = db.collection('malfunctions').doc();
@@ -366,7 +387,6 @@ async function reportVehicleIssue(req, res) {
 
     // Update the vehicle's status to "repair"
     await vehicleRef.update({ status: 'repair' });
-
     console.log('Vehicle status updated to "repair"'); // Confirm status update
 
     // Delete the associated reservation
@@ -378,7 +398,10 @@ async function reportVehicleIssue(req, res) {
 
     if (!reservations.empty) {
       const batch = db.batch();
-      reservations.forEach((doc) => batch.delete(doc.ref));
+      reservations.forEach((doc) => {
+        console.log('Deleting reservation:', doc.id); // Log reservation ID
+        batch.delete(doc.ref);
+      });
       await batch.commit();
       console.log('Associated reservation(s) deleted successfully');
     } else {
@@ -397,10 +420,21 @@ async function reportVehicleIssue(req, res) {
   }
 }
 
+
 async function getMalfunctionData(req, res) {
   try {
+    console.log('Fetching all malfunctions...');
     const snapshot = await db.collection('malfunctions').get();
-    const malfunctions = snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
+
+    if (snapshot.empty) {
+      console.log('No malfunctions found.');
+      return res.status(200).json([]);
+    }
+
+    const malfunctions = snapshot.docs.map((doc) => {
+      console.log('Malfunction data:', doc.id, doc.data()); // Log each malfunction
+      return { id: doc.id, ...doc.data() };
+    });
 
     res.status(200).json(malfunctions);
   } catch (error) {
@@ -408,6 +442,7 @@ async function getMalfunctionData(req, res) {
     res.status(500).json({ message: 'Error fetching malfunction data.', error: error.message });
   }
 }
+
 
 module.exports = { getVehicles, repairVehicle, deleteVehicle, getVehicle, reserveVehicle, getVehicleReservations, 
   reportMalfunction, getAdminReservations, unreserveVehicle, reportVehicleIssue, getMalfunctionData };
