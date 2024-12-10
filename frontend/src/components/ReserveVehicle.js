@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import { getUserData } from "../services/authService";
 import {
   getVehicleData,
@@ -47,29 +47,7 @@ function Reserve({
     console.log("Reserve Debug - Handle View Message Function:", handleViewMessage);
   }, [vehicles, canRepairVehicle]);
 
-  useEffect(() => {
-    const fetchData = async () => {
-      setLoading(true);
-      const userData = await getUserData(token);
-      if (userData.success) {
-        setRole(userData.data.role || "Driver");
-        const auth = getAuth();
-        const user = auth.currentUser;
-        user ? setUid(user.uid) : setUid(null);
-        await fetchVehicles();
-      }
-    };
-    fetchData();
-  }, [token, fetchVehicles]); // Add fetchVehicles here
-
-  useEffect(() => {
-    if (reservations.length > 0 && uid) {
-      const userRes = reservations.find((res) => res.userId === uid);
-      setUserReservation(userRes);
-    }
-  }, [reservations, uid]);
-
-  const fetchVehicles = async () => {
+  const fetchVehicles = useCallback(async () => {
     setLoading(true);
     try {
       const vehicleSnapshot = await getVehicleData(token);
@@ -92,7 +70,30 @@ function Reserve({
     } finally {
       setLoading(false);
     }
-  };
+  }, [token]);
+
+  useEffect(() => {
+    const fetchData = async () => {
+      setLoading(true);
+      const userData = await getUserData(token);
+      if (userData.success) {
+        setRole(userData.data.role || "Driver");
+        const auth = getAuth();
+        const user = auth.currentUser;
+        user ? setUid(user.uid) : setUid(null);
+
+        fetchVehicles();
+      }
+    };
+    fetchData();
+  }, [token, fetchVehicles]);
+
+  useEffect(() => {
+    if (reservations.length > 0 && uid) {
+      const userRes = reservations.find((res) => res.userId === uid);
+      setUserReservation(userRes);
+    }
+  }, [reservations, uid]);
 
   const handleReserve = (vehicleId) => {
     setReserveVehicleId(vehicleId);

@@ -39,7 +39,18 @@ function App() {
         if (userData.success) {
           setRole(userData.data.role || 'Driver');
           setLicenseUploaded(!!userData.data.licenseImageUrl);
-  
+
+          const fetchAllReservations = async () => {
+            try {
+              const vehicleSnapshot = await getReservationData(token);
+              if (vehicleSnapshot.success) {
+                setReservations(vehicleSnapshot.data);
+              }
+            } catch (error) {
+              console.log(error);
+            }
+          };
+
           fetchAllReservations();
           // Get the authenticated user's UID
           const auth = getAuth();
@@ -49,7 +60,7 @@ function App() {
       }
     };
     fetchRole();
-  }, [token, fetchAllReservations]);
+  }, [token]);
 
   useEffect(() => {
     // Fetch user reservation only after `reservations` and `uid` have been set
@@ -59,17 +70,6 @@ function App() {
     }
   }, [reservations, uid]);
   
-  const fetchAllReservations = async () => {
-    try {
-      const vehicleSnapshot = await getReservationData(token);
-      if (vehicleSnapshot.success) {
-        setReservations(vehicleSnapshot.data);
-      }
-    } catch (error) {
-      console.log(error);
-    } 
-  };
-
   return (
     <div>
       <h1>Vehicle Management System</h1>

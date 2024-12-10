@@ -1,5 +1,5 @@
 // components/Profile.js
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import '../CSS/Profile.css';
 import { getUserData, uploadLicense } from '../services/authService';
 
@@ -11,7 +11,7 @@ function Profile({ token, setShowProfile }) {
   const [file, setFile] = useState(null);
 
   // Function to fetch and update user data
-  const fetchUserData = async () => {
+  const fetchUserData = useCallback(async () => {
     const result = await getUserData(token);
     if (result.success) {
       setEmail(result.data.email);
@@ -20,12 +20,12 @@ function Profile({ token, setShowProfile }) {
     } else {
       setMessage(result.error || 'Failed to load profile data');
     }
-  };
+  }, [token]);
 
   // Initial data fetch
   useEffect(() => {
     fetchUserData();
-  }, [token, fetchUserData]); // Add fetchUserData here
+  }, [token, fetchUserData]);
 
   const handleFileChange = (e) => {
     setFile(e.target.files[0]);
