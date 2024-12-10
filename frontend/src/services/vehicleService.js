@@ -1,7 +1,8 @@
 // services/vehicleService.js
-const API_URL = 'http://localhost:5000/api/vehicle';
+import config from '../config';
 
-// Fetch vehicle data
+const API_URL = `${config.API_URL}/vehicle`;
+
 export const getVehicleData = async (token) => {
   try {
     const response = await fetch(`${API_URL}/vehicles`, {

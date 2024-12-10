@@ -1,5 +1,7 @@
 // services/authService.js
-const API_URL = 'http://localhost:5000/api/auth';
+import config from '../config';
+
+const API_URL = `${config.API_URL}/auth`;
 
 export const uploadLicense = async (file, token) => {
   const formData = new FormData();
