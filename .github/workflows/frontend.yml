@@ -34,6 +34,11 @@ jobs:
         cd frontend
         npm ci
 
+    - name: Build frontend
+      run: |
+        cd frontend
+        npm run build
+
     - name: Run tests with coverage
       run: |
         cd frontend
@@ -59,4 +64,4 @@ jobs:
     - name: Deploy to Firebase
       run: |
         cd frontend
-        firebase deploy --token ${{ secrets.FIREBASE_TOKEN }}
+        firebase deploy --only hosting --token ${{ secrets.FIREBASE_TOKEN }}

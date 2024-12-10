@@ -59,7 +59,7 @@ jobs:
 
   build-docker-image:
     runs-on: ubuntu-latest
-    needs: build-backend  
+    needs: build-backend
 
     steps:
     - name: Checkout code
@@ -81,19 +81,3 @@ jobs:
     - name: Push Docker image to Docker Hub
       run: |
         docker push ${{ secrets.DOCKER_USERNAME }}/company-vehicle-management:latest
-
-  deploy-to-firebase:
-    runs-on: ubuntu-latest
-    needs: build-docker-image  # Ensure the Docker image is built before deploying
-
-    steps:
-    - name: Checkout code
-      uses: actions/checkout@v3
-
-    - name: Install Firebase CLI
-      run: npm install -g firebase-tools
-
-    - name: Deploy to Firebase
-      run: |
-        cd backend
-        firebase deploy --token ${{ secrets.FIREBASE_TOKEN }}
