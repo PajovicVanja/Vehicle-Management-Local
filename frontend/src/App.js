@@ -52,7 +52,7 @@ function App() {
           };
 
           fetchAllReservations();
-          // Get the authenticated user's UID
+          // Get the authenticated user's UIDd
           const auth = getAuth();
           const user = auth.currentUser;
           user ? setUid(user.uid) : setUid(null);
