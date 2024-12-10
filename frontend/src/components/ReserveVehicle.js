@@ -6,7 +6,10 @@ import {
   repairVehicle,
   unreserveVehicle,
 } from "../services/vehicleService";
-import { getReservationData, deleteReservation } from "../services/reservationService";
+import {
+  getReservationData,
+  deleteReservation,
+} from "../services/reservationService";
 import ReserveVehicleForm from "./ReserveVehicleForm";
 import ReportIssueForm from "./ReportIssueForm";
 import VehicleTable from "./VehicleTable";
@@ -44,7 +47,10 @@ function Reserve({
   useEffect(() => {
     console.log("Reserve Debug - Vehicles:", vehicles);
     console.log("Reserve Debug - Can Repair Vehicle:", canRepairVehicle);
-    console.log("Reserve Debug - Handle View Message Function:", handleViewMessage);
+    console.log(
+      "Reserve Debug - Handle View Message Function:",
+      handleViewMessage
+    );
   }, [vehicles, canRepairVehicle]);
 
   const fetchVehicles = useCallback(async () => {
@@ -107,7 +113,10 @@ function Reserve({
           (res) => res.vehicleId === vehicle.vehicleId && res.userId === uid
         );
         if (reservation) {
-          const deleteResult = await deleteReservation(reservation.reservationId, token);
+          const deleteResult = await deleteReservation(
+            reservation.reservationId,
+            token
+          );
           if (deleteResult.success) {
             setUserReservation(null);
             await fetchVehicles();
@@ -143,6 +152,13 @@ function Reserve({
 
   const handleViewMessage = (vehicleId) => {
     setShowMessage(vehicleId);
+  };
+
+  const sanitizeMessage = (msg) => {
+    if (msg && msg.startsWith("Unexpected token '<'")) {
+      return ""; // Return an empty string or a default message to hide it
+    }
+    return msg; // Otherwise, keep the original message
   };
 
   if (reserveVehicleId) {
@@ -218,7 +234,7 @@ function Reserve({
         setShowAllCarReservations={setShowAllCarReservations}
         userReservationReset={userReservationReset}
       />
-      {message && <p className="profile-message">{message}</p>}
+      {message && <p className="profile-message">{sanitizeMessage(message)}</p>}
     </div>
   );
 }
