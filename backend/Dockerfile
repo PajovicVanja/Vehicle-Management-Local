@@ -5,13 +5,13 @@ FROM node:18
 WORKDIR /app
 
 # Copy package.json and package-lock.json to the working directory
-COPY backend/package*.json ./
+COPY package*.json ./
 
 # Install dependencies
 RUN npm ci
 
 # Copy the rest of the backend code to the working directory
-COPY backend/ .
+COPY . .
 
 # Expose the port that your backend server listens on
 EXPOSE 3000
