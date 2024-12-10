@@ -76,7 +76,7 @@ jobs:
 
     - name: Build and tag Docker image
       run: |
-        docker build -t ${{ secrets.DOCKER_USERNAME }}/company-vehicle-management:latest ./backend
+        docker build -t ${{ secrets.DOCKER_USERNAME }}/company-vehicle-management:latest -f backend/Dockerfile .
 
     - name: Push Docker image to Docker Hub
       run: |
