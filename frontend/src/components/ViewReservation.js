@@ -26,10 +26,10 @@ function ViewRes({token, reservationData}) {
     useEffect(() => {
         // Fetch user reservation only after `reservations` and `uid` have been set
         if (vehicles.length > 0) {
-        const userRes = vehicles.find(res => res.vehicleId === reservationData.vehicleId);
-        setUserVehicle(userRes);
+          const userRes = vehicles.find(res => res.vehicleId === reservationData.vehicleId);
+          setUserVehicle(userRes);
         }
-    }, [vehicles]);
+      }, [vehicles, reservationData.vehicleId]); // Add reservationData.vehicleId here
 
     
 

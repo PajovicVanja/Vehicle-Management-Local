@@ -25,7 +25,7 @@ function Profile({ token, setShowProfile }) {
   // Initial data fetch
   useEffect(() => {
     fetchUserData();
-  }, [token]);
+  }, [token, fetchUserData]); // Add fetchUserData here
 
   const handleFileChange = (e) => {
     setFile(e.target.files[0]);

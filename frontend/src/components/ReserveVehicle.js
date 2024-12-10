@@ -60,7 +60,7 @@ function Reserve({
       }
     };
     fetchData();
-  }, [token]);
+  }, [token, fetchVehicles]); // Add fetchVehicles here
 
   useEffect(() => {
     if (reservations.length > 0 && uid) {

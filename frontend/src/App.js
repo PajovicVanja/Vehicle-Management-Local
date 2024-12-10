@@ -32,13 +32,14 @@ function App() {
 
   // Fetch role and license status after login
   useEffect(() => {
+    // Fetch role and license status after login
     const fetchRole = async () => {
       if (token) {
         const userData = await getUserData(token);
         if (userData.success) {
           setRole(userData.data.role || 'Driver');
           setLicenseUploaded(!!userData.data.licenseImageUrl);
-
+  
           fetchAllReservations();
           // Get the authenticated user's UID
           const auth = getAuth();
@@ -48,7 +49,7 @@ function App() {
       }
     };
     fetchRole();
-  }, [token]);
+  }, [token, fetchAllReservations]);
 
   useEffect(() => {
     // Fetch user reservation only after `reservations` and `uid` have been set

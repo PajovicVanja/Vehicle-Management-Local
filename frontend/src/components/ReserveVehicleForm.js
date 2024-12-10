@@ -8,7 +8,7 @@ import '../CSS/Profile.css';
 import '../CSS/ReserveVehicle.css';
 import '../CSS/AddVehicle.css';
 import { reserveVehicle } from '../services/vehicleService';
-import { db, collection, doc, setDoc } from '../firebaseClient'; // Import Firestore
+import { db, collection, doc } from '../firebaseClient'; // Import Firestore
 import { getAuth } from 'firebase/auth'; // Import Firebase Authentication
 
 function ReserveVehicleForm({ token, reserveVehicleId, setReserveVehicleId, fetchVehicles }) {

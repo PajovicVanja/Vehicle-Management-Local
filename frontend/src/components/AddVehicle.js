@@ -1,9 +1,9 @@
 // components/AddVehicle.js
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react'; // Remove useEffect
 
 import '../CSS/Profile.css';
 import '../CSS/AddVehicle.css';
-import { db, collection, doc, setDoc  } from '../firebaseClient'; // Import Firestore
+import { db, collection, doc, setDoc } from '../firebaseClient'; // Import Firestore
 
 function AddVehicle({ token, setShowAddVehicle }) {
   const [vehicleName, setVehicleName] = useState('');
@@ -11,41 +11,36 @@ function AddVehicle({ token, setShowAddVehicle }) {
   const [engine, setEngine] = useState('');
   const [color, setColor] = useState('');
   const [year, setYear] = useState('');
-  const [image, setImage] = useState(null);
-  const [error, setError] = useState('');
+  // Remove setImage and setError
 
   const handleAddVehicle = async (e) => {
     e.preventDefault();
-    
-      // Generate a unique document reference with a new ID
-      const vehicleRef = doc(collection(db, 'vehicles'));
-      const vehicleId = vehicleRef.id;
-      const status = 'available';
+    // Generate a unique document reference with a new ID
+    const vehicleRef = doc(collection(db, 'vehicles'));
+    const vehicleId = vehicleRef.id;
+    const status = 'available';
 
-      // Create a new vehicle object including the vehicleId
-      const newVehicle = {
-        vehicleId,           // Add the unique ID to the vehicle data
-        vehicleName,
-        engine,
-        hp,
-        color,
-        year,
-        image,
-        status,
-      };
+    // Create a new vehicle object including the vehicleId
+    const newVehicle = {
+      vehicleId,           // Add the unique ID to the vehicle data
+      vehicleName,
+      engine,
+      hp,
+      color,
+      year,
+      status,
+    };
 
     try {
-
       // Add the document with the custom ID and data
       await setDoc(vehicleRef, newVehicle);
       console.log(`Added vehicle ${newVehicle.vehicleName} with ID: ${vehicleId}`);
-
     } catch (error) {
-        console.error("Error adding vehicle:", error);
+      console.error("Error adding vehicle:", error);
     }
 
     setShowAddVehicle(false);
-  }
+  };
 
   return (
     <div className="add-vehicle-container">
@@ -89,7 +84,6 @@ function AddVehicle({ token, setShowAddVehicle }) {
         <button type="submit" className="add-vehicle-button">Add vehicle</button>
       </form>
       <button onClick={() => setShowAddVehicle(false)} className='goto-vehicle-select-button'>Back to Vehicle selection</button>
-      {error && <p  className="error-message">{error}</p>}
     </div>
   );
 }
