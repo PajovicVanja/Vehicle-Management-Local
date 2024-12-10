@@ -8,7 +8,10 @@ const reimbursementRoutes = require('./routes/reimbursementRoutes');
 
 const app = express();
 
-app.use(cors({ origin: 'http://localhost:3000' }));
+app.use(cors({
+    origin: 'https://company-vehicle-management.web.app', // Replace with your frontend's URL
+    credentials: true,
+  }));
 app.use(express.json()); // Parse incoming JSON data
 
 app.use('/api/auth', authRoutes);
