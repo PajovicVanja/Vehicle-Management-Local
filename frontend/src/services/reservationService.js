@@ -1,7 +1,7 @@
 // services/resrvationService.js
 import config from '../config';
 
-const API_URL = `${config.API_URL}/auth`;
+const API_URL = `${config.API_URL}/reservation`;
 
 // Fetch all reservations
 export const getReservationData = async (token) => {
