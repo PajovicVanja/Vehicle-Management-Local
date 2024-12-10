@@ -33,6 +33,7 @@ jobs:
       run: |
         cd frontend
         npm ci
+        npm install --save-dev @babel/plugin-proposal-private-property-in-object
 
     - name: Build frontend
       run: |
