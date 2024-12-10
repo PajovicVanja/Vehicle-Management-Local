@@ -66,7 +66,7 @@ function Reserve({
       }
     } catch (error) {
       console.error("Error fetching data:", error);
-      setError(error);
+      setError(error.message);
     } finally {
       setLoading(false);
     }
@@ -192,7 +192,7 @@ function Reserve({
       {loading ? (
         <p>Loading...</p>
       ) : error ? (
-        <p>Error loading vehicles: {error.message}</p>
+        <p>Error loading vehicles: {error}</p>
       ) : vehicles.length === 0 ? (
         <p>No vehicles found.</p>
       ) : (

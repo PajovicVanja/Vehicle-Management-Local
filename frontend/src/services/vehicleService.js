@@ -10,6 +10,14 @@ export const getVehicleData = async (token) => {
         Authorization: `Bearer ${token}`,
       },
     });
+
+    // Check if the response is not JSON
+    const contentType = response.headers.get('content-type');
+    if (!contentType || !contentType.includes('application/json')) {
+      const errorText = await response.text();
+      throw new Error(`Unexpected response: ${errorText}`);
+    }
+
     const data = await response.json();
     if (response.ok) {
       return { success: true, data };
