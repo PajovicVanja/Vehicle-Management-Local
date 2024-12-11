@@ -61,7 +61,7 @@ describe('Auth Controller Tests', () => {
       .get('/api/auth/profile')
       .set('Authorization', 'Bearer mock-token');
     expect(res.statusCode).toBe(200);
-    expect(res.body).toHaveProperty('email', 'testuser@example.com');
+    expect(res.body).toHaveProperty('email', 'test@example.com');
     expect(res.body).toHaveProperty('role', 'Admin');
   });
 });
