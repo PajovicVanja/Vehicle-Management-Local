@@ -29,23 +29,23 @@ const VehicleRow = ({ vehicle, userReservation, canRepairVehicle, canDeleteVehic
               <button onClick={() => removeReserve(vehicle)} className="reserve-button">
                 Remove Reserve
               </button>
-              <button onClick={() => setReportIssueVehicleId(vehicle.vehicleId)} className="report-button">
+              <button onClick={() => setReportIssueVehicleId(vehicle.vehicleId)} className="reserve-button">
                 Report Issue
               </button>
             </>
           )}
           {canRepairVehicle && status === "repair" && (
             <>
-              <button onClick={() => handleRepair(vehicle.vehicleId)} className="repair-button">
+              <button onClick={() => handleRepair(vehicle.vehicleId)} className="reserve-button">
                 Repair
               </button>
-              <button onClick={() => handleViewMessage(vehicle.vehicleId)} className="view-message-button">
+              <button onClick={() => handleViewMessage(vehicle.vehicleId)} className="reserve-button">
                 View Message
               </button>
             </>
           )}
           {canDeleteVehicle && (
-            <button onClick={() => handleDelete(vehicle.vehicleId)} className="delete-button">
+            <button onClick={() => handleDelete(vehicle.vehicleId)} className="reserve-button">
               Delete
             </button>
           )}

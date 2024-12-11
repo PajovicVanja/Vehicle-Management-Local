@@ -13,14 +13,14 @@ const ReservationControls = ({ canAddVehicle, canViewAllReservations, setShowRes
         Back to Dashboard
       </button>
       {canAddVehicle && (
-        <button onClick={() => setShowAddVehicle(true)} className="add-button">
+        <button onClick={() => setShowAddVehicle(true)} className="back-button">
           Add Vehicle
         </button>
       )}
       {canViewAllReservations && (
         <button
           onClick={() => setShowAllCarReservations(true)}
-          className="view-reservations-button"
+          className="back-button"
         >
           View All Reservations
         </button>

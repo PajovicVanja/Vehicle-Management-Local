@@ -23,7 +23,7 @@ export const getReservationData = async (token) => {
 export const getReservation = async (resId, token) => {
   try {
     const API_URL = await config.getApiUrl();
-    const response = await fetch(`${API_URL}/reservation/reservation${resId}`, {
+    const response = await fetch(`${API_URL}/reservation/reservation/${resId}`, {
       headers: {
         Authorization: `Bearer ${token}`,
       },
@@ -43,7 +43,7 @@ export const getReservation = async (resId, token) => {
 export const deleteReservation = async (resId, token) => {
   try {
     const API_URL = await config.getApiUrl();
-    const response = await fetch(`${API_URL}/reservation/reservation${resId}`, {
+    const response = await fetch(`${API_URL}/reservation/reservation/${resId}`, {
       method: 'DELETE',
       headers: {
         'Content-Type': 'application/json',
