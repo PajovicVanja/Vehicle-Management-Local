@@ -111,3 +111,9 @@ jobs:
     - name: Push Docker image to Docker Hub
       run: |
         docker push ${{ secrets.DOCKER_USERNAME }}/company-vehicle-management:latest
+
+    - name: Trigger Render deploy
+      env:
+        RENDER_DEPLOY_HOOK: ${{ secrets.RENDER_DEPLOY_HOOK }}
+      run: |
+        curl -X POST $RENDER_DEPLOY_HOOK
