@@ -9,7 +9,7 @@ on:
       - main
 
 jobs:
-  build-and-cache:
+  build-frontend:
     runs-on: ubuntu-latest
 
     steps:
@@ -21,7 +21,7 @@ jobs:
       with:
         node-version: 18
 
-    - name: Cache node_modules
+    - name: Cache frontend node_modules
       uses: actions/cache@v3
       with:
         path: frontend/node_modules
@@ -29,7 +29,7 @@ jobs:
         restore-keys: |
           ${{ runner.os }}-frontend-
 
-    - name: Install dependencies
+    - name: Install frontend dependencies
       run: |
         cd frontend
         npm ci
@@ -39,62 +39,8 @@ jobs:
         cd frontend
         npm run build
 
-    - name: Store build artifacts
+    - name: Store frontend build artifacts
       uses: actions/upload-artifact@v4
       with:
         name: frontend-build
         path: frontend/build/
-
-  build-and-deploy-frontend:
-    runs-on: ubuntu-latest
-    needs: build-and-cache
-
-    steps:
-    - name: Checkout code
-      uses: actions/checkout@v3
-
-    - name: Setup Node.js
-      uses: actions/setup-node@v3
-      with:
-        node-version: 18
-
-    - name: Cache node_modules
-      uses: actions/cache@v3
-      with:
-        path: frontend/node_modules
-        key: ${{ runner.os }}-frontend-${{ hashFiles('frontend/package-lock.json') }}
-        restore-keys: |
-          ${{ runner.os }}-frontend-
-
-    - name: Install dependencies
-      run: |
-        cd frontend
-        npm ci
-
-    - name: Build frontend
-      run: |
-        cd frontend
-        npm run build
-
-    - name: List build directory contents
-      run: |
-        ls -la frontend/build
-
-    - name: Run tests with coverage
-      run: |
-        cd frontend
-        npm test -- --coverage
-
-    - name: Upload coverage report
-      uses: actions/upload-artifact@v4
-      with:
-        name: frontend-coverage
-        path: frontend/coverage/
-
-    - name: Deploy to Firebase Hosting
-      env:
-        FIREBASE_TOKEN: ${{ secrets.FIREBASE_TOKEN }}
-      run: |
-        cd frontend
-        npm install -g firebase-tools
-        firebase deploy --only hosting --token $FIREBASE_TOKEN
