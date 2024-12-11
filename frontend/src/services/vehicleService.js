@@ -4,7 +4,7 @@ import config from '../config';
 export const getVehicleData = async (token) => {
   try {
     const API_URL = await config.getApiUrl();
-    const response = await fetch(`${API_URL}/vehicles`, {
+    const response = await fetch(`${API_URL}/vehicle/vehicles`, {
       headers: {
         Authorization: `Bearer ${token}`,
       },
@@ -30,7 +30,7 @@ export const getVehicleData = async (token) => {
 export const deleteVehicle = async (vehicleId, token) => {
   try {
     const API_URL = await config.getApiUrl();
-    const response = await fetch(`${API_URL}/vehicles/${vehicleId}`, {
+    const response = await fetch(`${API_URL}/vehicle/vehicles/${vehicleId}`, {
       method: 'DELETE',
       headers: {
         'Content-Type': 'application/json',
@@ -52,7 +52,7 @@ export const deleteVehicle = async (vehicleId, token) => {
 export const repairVehicle = async (vehicleId, token) => {
   try {
     const API_URL = await config.getApiUrl();
-    const response = await fetch(`${API_URL}/vehicles/${vehicleId}/repair`, {
+    const response = await fetch(`${API_URL}/vehicle/vehicles/${vehicleId}/repair`, {
       method: 'PATCH',
       headers: {
         'Content-Type': 'application/json',
@@ -74,7 +74,7 @@ export const repairVehicle = async (vehicleId, token) => {
 export const unreserveVehicle = async (vehicleId, token) => {
   try {
     const API_URL = await config.getApiUrl();
-    const response = await fetch(`${API_URL}/vehicles/${vehicleId}/unreserve`, {
+    const response = await fetch(`${API_URL}/vehicle/vehicles/${vehicleId}/unreserve`, {
       method: 'PATCH',
       headers: {
         'Content-Type': 'application/json',
@@ -96,7 +96,7 @@ export const unreserveVehicle = async (vehicleId, token) => {
 export const reserveVehicle = async (vehicleId, reservationData, token) => {
   try {
     const API_URL = await config.getApiUrl();
-    const response = await fetch(`${API_URL}/vehicles/${vehicleId}/reserve`, {
+    const response = await fetch(`${API_URL}/vehicle/vehicles/${vehicleId}/reserve`, {
       method: 'PATCH',
       headers: {
         'Content-Type': 'application/json',
@@ -119,7 +119,7 @@ export const reserveVehicle = async (vehicleId, reservationData, token) => {
 export const getAdminReservations = async (token) => {
   try {
     const API_URL = await config.getApiUrl();
-    const response = await fetch(`${API_URL}/admin-reservations`, {
+    const response = await fetch(`${API_URL}/vehicle/admin-reservations`, {
       headers: {
         Authorization: `Bearer ${token}`,
       },
@@ -138,7 +138,7 @@ export const getAdminReservations = async (token) => {
 export const reportVehicleIssue = async (vehicleId, issueData, token) => {
   try {
     const API_URL = await config.getApiUrl();
-    const response = await fetch(`${API_URL}/vehicles/${vehicleId}/report-issue`, {
+    const response = await fetch(`${API_URL}/vehicle/vehicles/${vehicleId}/report-issue`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -161,7 +161,7 @@ export const reportVehicleIssue = async (vehicleId, issueData, token) => {
 export const getMalfunctionData = async (token) => {
   try {
     const API_URL = await config.getApiUrl();
-    const response = await fetch(`${API_URL}/malfunctions`, {
+    const response = await fetch(`${API_URL}/vehicle/malfunctions`, {
       headers: {
         Authorization: `Bearer ${token}`,
       },
