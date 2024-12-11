@@ -9,25 +9,18 @@ on:
       - main
 
 jobs:
-  checkout-code:
+  setup:
+    name: Setup Environment
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
         uses: actions/checkout@v3
 
-  setup-node:
-    runs-on: ubuntu-latest
-    needs: checkout-code
-    steps:
       - name: Setup Node.js
         uses: actions/setup-node@v3
         with:
           node-version: 18
 
-  cache-dependencies:
-    runs-on: ubuntu-latest
-    needs: setup-node
-    steps:
       - name: Cache frontend node_modules
         uses: actions/cache@v3
         with:
@@ -36,65 +29,69 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-frontend-
 
-  install-dependencies:
+  install:
+    name: Install Dependencies
     runs-on: ubuntu-latest
-    needs: cache-dependencies
+    needs: setup
     steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
       - name: Install frontend dependencies
         run: |
           cd frontend
           npm ci
 
-  build-frontend:
+  test:
+    name: Run Tests
     runs-on: ubuntu-latest
-    needs: install-dependencies
+    needs: install
     steps:
-      - name: Build frontend
-        run: |
-          cd frontend
-          npm run build
+      - name: Checkout code
+        uses: actions/checkout@v3
 
-  store-artifacts:
-    runs-on: ubuntu-latest
-    needs: build-frontend
-    steps:
-      - name: Store frontend build artifacts
-        uses: actions/upload-artifact@v4
-        with:
-          name: frontend-build
-          path: frontend/build/
-
-  list-build-contents:
-    runs-on: ubuntu-latest
-    needs: store-artifacts
-    steps:
-      - name: List build directory contents
-        run: |
-          ls -la frontend/build
-
-  run-tests:
-    runs-on: ubuntu-latest
-    needs: list-build-contents
-    steps:
       - name: Run tests with coverage
         run: |
           cd frontend
           npm test -- --coverage
 
-  upload-coverage:
-    runs-on: ubuntu-latest
-    needs: run-tests
-    steps:
       - name: Upload coverage report
         uses: actions/upload-artifact@v4
         with:
           name: frontend-coverage
           path: frontend/coverage/
 
-  deploy:
+  build:
+    name: Build Frontend
     runs-on: ubuntu-latest
-    needs: upload-coverage
+    needs: test
     steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Build frontend
+        run: |
+          cd frontend
+          npm run build
+
+      - name: Store frontend build artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: frontend-build
+          path: frontend/build/
+
+      - name: List build directory contents
+        run: |
+          ls -la frontend/build
+
+  deploy:
+    name: Deploy to Firebase Hosting
+    runs-on: ubuntu-latest
+    needs: build
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
       - name: Deploy to Firebase Hosting
         env:
           FIREBASE_TOKEN: ${{ secrets.FIREBASE_TOKEN }}
