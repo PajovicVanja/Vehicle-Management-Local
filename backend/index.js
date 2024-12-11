@@ -12,9 +12,9 @@ const allowedOrigins = [
     'http://localhost:3000',
     'https://company-vehicle-management.web.app',
     'https://company-vehicle-management.firebaseapp.com'
-  ];
-  
-  app.use(cors({
+];
+
+app.use(cors({
     origin: function (origin, callback) {
       // Allow requests with no origin (like mobile apps or curl requests)
       if (!origin) return callback(null, true);
@@ -25,8 +25,17 @@ const allowedOrigins = [
       return callback(null, true);
     },
     credentials: true,
-  }));
+}));
 app.use(express.json()); // Parse incoming JSON data
+
+// Add a health check route
+app.get('/api/health', (req, res) => {
+    res.status(200).json({
+        status: 'ok',
+        message: 'API is running',
+        timestamp: new Date().toISOString(),
+    });
+});
 
 app.use('/api/auth', authRoutes);
 app.use('/api/vehicle', vehicleRoutes);

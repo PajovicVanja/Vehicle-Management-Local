@@ -1,14 +1,12 @@
-// services/authService.js
 import config from '../config';
-
-const API_URL = `${config.API_URL}/auth`;
 
 export const uploadLicense = async (file, token) => {
   const formData = new FormData();
   formData.append('licenseImage', file);
 
   try {
-    const response = await fetch(`${API_URL}/upload-license`, {
+    const API_URL = await config.getApiUrl();
+    const response = await fetch(`${API_URL}/auth/upload-license`, {
       method: 'POST',
       headers: {
         Authorization: `Bearer ${token}`,
@@ -26,10 +24,10 @@ export const uploadLicense = async (file, token) => {
   }
 };
 
-// Fetch user data including email and license image URL
 export const getUserData = async (token) => {
   try {
-    const response = await fetch(`${API_URL}/profile`, {
+    const API_URL = await config.getApiUrl();
+    const response = await fetch(`${API_URL}/auth/profile`, {
       headers: {
         Authorization: `Bearer ${token}`,
       },
