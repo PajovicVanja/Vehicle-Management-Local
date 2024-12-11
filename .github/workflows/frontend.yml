@@ -9,71 +9,98 @@ on:
       - main
 
 jobs:
-  build-and-deploy-frontend:
+  setup:
+    name: Setup Environment
     runs-on: ubuntu-latest
-
     steps:
-    # Checkout the code
-    - name: Checkout code
-      uses: actions/checkout@v3
+      - name: Checkout code
+        uses: actions/checkout@v3
 
-    # Set up Node.js
-    - name: Setup Node.js
-      uses: actions/setup-node@v3
-      with:
-        node-version: 18
+      - name: Setup Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: 18
 
-    # Cache frontend node_modules
-    - name: Cache frontend node_modules
-      uses: actions/cache@v3
-      with:
-        path: frontend/node_modules
-        key: ${{ runner.os }}-frontend-${{ hashFiles('frontend/package-lock.json') }}
-        restore-keys: |
-          ${{ runner.os }}-frontend-
+      - name: Cache frontend node_modules
+        uses: actions/cache@v3
+        with:
+          path: frontend/node_modules
+          key: ${{ runner.os }}-frontend-${{ hashFiles('frontend/package-lock.json') }}
+          restore-keys: |
+            ${{ runner.os }}-frontend-
 
-    # Install frontend dependencies
-    - name: Install frontend dependencies
-      run: |
-        cd frontend
-        npm ci
+  install:
+    name: Install Dependencies
+    runs-on: ubuntu-latest
+    needs: setup
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
 
-    # Build the frontend
-    - name: Build frontend
-      run: |
-        cd frontend
-        npm run build
+      - name: Install frontend dependencies
+        run: |
+          cd frontend
+          npm ci
 
-    # Store frontend build artifacts
-    - name: Store frontend build artifacts
-      uses: actions/upload-artifact@v4
-      with:
-        name: frontend-build
-        path: frontend/build/
+  build:
+    name: Build Frontend
+    runs-on: ubuntu-latest
+    needs: install
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
 
-    # List build directory contents for verification
-    - name: List build directory contents
-      run: |
-        ls -la frontend/build
+      - name: Build frontend
+        run: |
+          cd frontend
+          npm run build
 
-    # Run tests with coverage
-    - name: Run tests with coverage
-      run: |
-        cd frontend
-        npm test -- --coverage
+      - name: Store frontend build artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: frontend-build
+          path: frontend/build/
 
-    # Upload coverage report
-    - name: Upload coverage report
-      uses: actions/upload-artifact@v4
-      with:
-        name: frontend-coverage
-        path: frontend/coverage/
+      - name: List build directory contents
+        run: |
+          ls -la frontend/build
 
-    # Deploy to Firebase Hosting
-    - name: Deploy to Firebase Hosting
-      env:
-        FIREBASE_TOKEN: ${{ secrets.FIREBASE_TOKEN }}
-      run: |
-        cd frontend
-        npm install -g firebase-tools
-        firebase deploy --only hosting --token $FIREBASE_TOKEN
+  test:
+    name: Run Tests
+    runs-on: ubuntu-latest
+    needs: build
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Install frontend dependencies
+        run: |
+          cd frontend
+          npm ci
+
+      - name: Run tests with coverage
+        run: |
+          cd frontend
+          npm test -- --coverage
+
+      - name: Upload coverage report
+        uses: actions/upload-artifact@v4
+        with:
+          name: frontend-coverage
+          path: frontend/coverage/
+
+  deploy:
+    name: Deploy to Firebase Hosting
+    runs-on: ubuntu-latest
+    needs: test
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Deploy to Firebase Hosting
+        env:
+          FIREBASE_TOKEN: ${{ secrets.FIREBASE_TOKEN }}
+        run: |
+          cd frontend
+          npm install -g firebase-tools
+          firebase deploy --only hosting --token $FIREBASE_TOKEN
