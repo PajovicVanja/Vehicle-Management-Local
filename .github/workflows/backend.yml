@@ -104,7 +104,7 @@ jobs:
         username: ${{ secrets.DOCKER_USERNAME }}
         password: ${{ secrets.DOCKER_PASSWORD }}
 
-- name: Build and tag Docker image
+    - name: Build and tag Docker image
       run: |
         docker build \
           --build-arg FIREBASE_PROJECT_ID=${{ secrets.FIREBASE_PROJECT_ID }} \
