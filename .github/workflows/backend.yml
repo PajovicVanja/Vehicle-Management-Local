@@ -104,9 +104,22 @@ jobs:
         username: ${{ secrets.DOCKER_USERNAME }}
         password: ${{ secrets.DOCKER_PASSWORD }}
 
-    - name: Build and tag Docker image
+- name: Build and tag Docker image
       run: |
-        docker build -t ${{ secrets.DOCKER_USERNAME }}/company-vehicle-management:latest -f Dockerfile.dockerhub .
+        docker build \
+          --build-arg FIREBASE_PROJECT_ID=${{ secrets.FIREBASE_PROJECT_ID }} \
+          --build-arg FIREBASE_PRIVATE_KEY=${{ secrets.FIREBASE_PRIVATE_KEY }} \
+          --build-arg FIREBASE_CLIENT_EMAIL=${{ secrets.FIREBASE_CLIENT_EMAIL }} \
+          --build-arg FIREBASE_CLIENT_ID=${{ secrets.FIREBASE_CLIENT_ID }} \
+          --build-arg FIREBASE_AUTH_URI=${{ secrets.FIREBASE_AUTH_URI }} \
+          --build-arg FIREBASE_TOKEN_URI=${{ secrets.FIREBASE_TOKEN_URI }} \
+          --build-arg FIREBASE_AUTH_PROVIDER_CERT_URL=${{ secrets.FIREBASE_AUTH_PROVIDER_CERT_URL }} \
+          --build-arg FIREBASE_CLIENT_CERT_URL=${{ secrets.FIREBASE_CLIENT_CERT_URL }} \
+          --build-arg CLOUDINARY_CLOUD_NAME=${{ secrets.CLOUDINARY_CLOUD_NAME }} \
+          --build-arg CLOUDINARY_API_KEY=${{ secrets.CLOUDINARY_API_KEY }} \
+          --build-arg CLOUDINARY_API_SECRET=${{ secrets.CLOUDINARY_API_SECRET }} \
+          -t ${{ secrets.DOCKER_USERNAME }}/company-vehicle-management:latest \
+          -f Dockerfile.dockerhub .
 
     - name: Push Docker image to Docker Hub
       run: |
