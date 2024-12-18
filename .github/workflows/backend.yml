@@ -48,7 +48,7 @@ jobs:
         echo "FIREBASE_CLIENT_EMAIL=${{ vars.FIREBASE_CLIENT_EMAIL }}" >> backend/.env.test
         echo "FIREBASE_CLIENT_ID=${{ vars.FIREBASE_CLIENT_ID }}" >> backend/.env.test
         echo "FIREBASE_TOKEN_URI=${{ vars.FIREBASE_TOKEN_URI }}" >> backend/.env.test
-        echo "FIREBASE_PRIVATE_KEY=\"${{ secrets.FIREBASE_PRIVATE_KEY }}\"" >> backend/.env.test
+        echo "FIREBASE_PRIVATE_KEY=${{ secrets.FIREBASE_PRIVATE_KEY }}" >> $GITHUB_ENV
 
     - name: Debug .env.test file
       run: cat backend/.env.test
