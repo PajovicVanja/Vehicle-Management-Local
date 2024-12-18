@@ -43,11 +43,11 @@ jobs:
 
     - name: Create test environment file
       run: |
-        echo "FIREBASE_PROJECT_ID=${{ vars.FIREBASE_PROJECT_ID }}" >> backend/.env.test
-        echo "FIREBASE_AUTH_URI=${{ vars.FIREBASE_AUTH_URI }}" >> backend/.env.test
-        echo "FIREBASE_CLIENT_EMAIL=${{ vars.FIREBASE_CLIENT_EMAIL }}" >> backend/.env.test
-        echo "FIREBASE_CLIENT_ID=${{ vars.FIREBASE_CLIENT_ID }}" >> backend/.env.test
-        echo "FIREBASE_TOKEN_URI=${{ vars.FIREBASE_TOKEN_URI }}" >> backend/.env.test
+        echo "FIREBASE_PROJECT_ID=${{ vars.FIREBASE_PROJECT_ID }}" >> $GITHUB_ENV
+        echo "FIREBASE_AUTH_URI=${{ vars.FIREBASE_AUTH_URI }}" >> $GITHUB_ENV
+        echo "FIREBASE_CLIENT_EMAIL=${{ vars.FIREBASE_CLIENT_EMAIL }}" >> $GITHUB_ENV
+        echo "FIREBASE_CLIENT_ID=${{ vars.FIREBASE_CLIENT_ID }}" >> $GITHUB_ENV
+        echo "FIREBASE_TOKEN_URI=${{ vars.FIREBASE_TOKEN_URI }}" >> $GITHUB_ENV
         echo "FIREBASE_PRIVATE_KEY=${{ secrets.FIREBASE_PRIVATE_KEY }}" >> $GITHUB_ENV
 
     - name: Debug .env.test file
