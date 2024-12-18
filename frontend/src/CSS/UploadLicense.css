@@ -1,0 +1,89 @@
+body {
+    font-family: Arial, sans-serif;
+    background-color: #fdfdfd;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    height: 100vh;
+    margin: 0;
+  }
+  
+  .upload-container {
+    background-color: #ffffff;
+    border-radius: 16px;
+    box-shadow: 0 8px 20px rgba(0, 0, 0, 0.1);
+    padding: 2rem;
+    width: 320px;
+    text-align: center;
+  }
+  
+  h2 {
+    color: #e63946;
+    font-size: 1.8rem;
+    margin-bottom: 1.5rem;
+    font-weight: 600;
+  }
+  
+  .upload-form {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+  }
+  
+  .file-input {
+    margin: 1rem 0;
+    padding: 0.6rem;
+    font-size: 1rem;
+    color: #333;
+    border: 1px solid #e0e0e0;
+    border-radius: 8px;
+    width: 100%;
+    transition: border-color 0.3s ease;
+  }
+  
+  .file-input:hover, .file-input:focus {
+    border-color: #e63946;
+  }
+  
+  .upload-button {
+    width: 100%;
+    padding: 0.75rem;
+    background-color: #e63946;
+    color: white;
+    border: none;
+    border-radius: 8px;
+    font-weight: 600;
+    cursor: pointer;
+    font-size: 1rem;
+    transition: background-color 0.3s ease;
+  }
+  
+  .upload-button:hover {
+    background-color: #cc3333;
+  }
+  
+  .upload-message {
+    color: #333;
+    font-size: 0.9rem;
+    margin-top: 1rem;
+  }
+
+
+
+  .goto-register-button {
+    margin-top: 1rem;
+    padding: 0.6rem 1.2rem;
+    background-color: transparent;
+    color: #e63946;
+    border: 1px solid #e63946;
+    border-radius: 8px;
+    font-size: 0.9rem;
+    cursor: pointer;
+    transition: all 0.3s ease;
+  }
+  
+  .goto-register-button:hover {
+    background-color: #ffe5e5;
+    color: #e63946;
+    border-color: #cc3333;
+  }

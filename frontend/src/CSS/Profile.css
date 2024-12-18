@@ -1,0 +1,58 @@
+
+  .profile-container {
+    background-color: #ffffff;
+    border-radius: 16px;
+    box-shadow: 0 8px 20px rgba(0, 0, 0, 0.1);
+    padding: 2rem;
+    width: 340px;
+    text-align: center;
+  }
+
+  .profile-email {
+    font-size: 1rem;
+    color: #333;
+    margin-bottom: 1.5rem;
+  }
+  
+  .license-section h3 {
+    font-size: 1.1rem;
+    color: #e63946;
+    margin-bottom: 0.5rem;
+  }
+  
+  .license-image {
+    width: 200px;
+    border-radius: 8px;
+    box-shadow: 0 4px 10px rgba(0, 0, 0, 0.1);
+    margin-top: 0.5rem;
+  }
+  
+  .no-license {
+    color: #888;
+    font-size: 0.9rem;
+    margin-bottom: 1.5rem;
+  }
+  
+  .back-button {
+    padding: 0.6rem 1.2rem;
+    background-color: transparent;
+    color: #e63946;
+    border: 1px solid #e63946;
+    border-radius: 8px;
+    font-size: 0.9rem;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    margin-top: 1.5rem;
+  }
+  
+  .back-button:hover {
+    background-color: #ffe5e5;
+    color: #e63946;
+    border-color: #cc3333;
+  }
+  
+  .profile-message {
+    color: #333;
+    font-size: 0.9rem;
+    margin-top: 1rem;
+  }
