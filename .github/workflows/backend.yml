@@ -41,10 +41,23 @@ jobs:
         cd backend
         npm run build
 
+    - name: Create test environment file
+      run: |
+        echo "FIREBASE_PROJECT_ID=${{ vars.FIREBASE_PROJECT_ID }}" >> backend/.env.test
+        echo "FIREBASE_AUTH_URI=${{ vars.FIREBASE_AUTH_URI }}" >> backend/.env.test
+        echo "FIREBASE_CLIENT_EMAIL=${{ vars.FIREBASE_CLIENT_EMAIL }}" >> backend/.env.test
+        echo "FIREBASE_CLIENT_ID=${{ vars.FIREBASE_CLIENT_ID }}" >> backend/.env.test
+        echo "FIREBASE_TOKEN_URI=${{ vars.FIREBASE_TOKEN_URI }}" >> backend/.env.test
+        echo "FIREBASE_PRIVATE_KEY=\"${{ secrets.FIREBASE_PRIVATE_KEY }}\"" >> backend/.env.test
+
+    - name: Debug .env.test file
+      run: cat backend/.env.test
+
     - name: Run tests with coverage
       run: |
         cd backend
-        npm test -- --coverage
+        npm test -- --coverage --env-file=.env.test
+
 
     - name: Upload coverage report
       uses: actions/upload-artifact@v4
