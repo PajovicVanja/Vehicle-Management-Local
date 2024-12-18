@@ -47,10 +47,6 @@ jobs:
         name: frontend-build
         path: frontend/build/
 
-    - name: List build directory contents
-      run: |
-        ls -la frontend/build
-
     - name: Run tests with coverage
       run: |
         cd frontend
@@ -79,16 +75,21 @@ jobs:
         name: frontend-build
         path: frontend/build
 
-    - name: Set up Firebase credentials
+    - name: Install Firebase CLI
+      run: |
+        npm install -g firebase-tools
+
+    - name: Authenticate Firebase using Service Account
       run: |
         echo '${{ secrets.GOOGLE_APPLICATION_CREDENTIALS }}' > $HOME/service-account.json
+        export GOOGLE_APPLICATION_CREDENTIALS=$HOME/service-account.json
+        firebase use --add development --token "$(cat $GOOGLE_APPLICATION_CREDENTIALS | jq -r .private_key)"
 
     - name: Deploy to Firebase Hosting (Development)
       env:
         GOOGLE_APPLICATION_CREDENTIALS: $HOME/service-account.json
       run: |
         cd frontend
-        npm install -g firebase-tools
         firebase deploy --only hosting --project development
 
   deploy-to-production:
@@ -108,14 +109,19 @@ jobs:
         name: frontend-build
         path: frontend/build
 
-    - name: Set up Firebase credentials
+    - name: Install Firebase CLI
+      run: |
+        npm install -g firebase-tools
+
+    - name: Authenticate Firebase using Service Account
       run: |
         echo '${{ secrets.GOOGLE_APPLICATION_CREDENTIALS }}' > $HOME/service-account.json
+        export GOOGLE_APPLICATION_CREDENTIALS=$HOME/service-account.json
+        firebase use --add production --token "$(cat $GOOGLE_APPLICATION_CREDENTIALS | jq -r .private_key)"
 
     - name: Deploy to Firebase Hosting (Production)
       env:
         GOOGLE_APPLICATION_CREDENTIALS: $HOME/service-account.json
       run: |
         cd frontend
-        npm install -g firebase-tools
         firebase deploy --only hosting --project production
