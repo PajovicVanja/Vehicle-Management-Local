@@ -50,8 +50,6 @@ jobs:
         echo "FIREBASE_TOKEN_URI=${{ vars.FIREBASE_TOKEN_URI }}" >> $GITHUB_ENV
         echo "FIREBASE_PRIVATE_KEY=${{ secrets.FIREBASE_PRIVATE_KEY }}" >> $GITHUB_ENV
 
-    - name: Debug .env.test file
-      run: cat backend/.env.test
 
     - name: Run tests with coverage
       run: |
