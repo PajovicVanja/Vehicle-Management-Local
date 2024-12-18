@@ -11,7 +11,7 @@ on:
       - production
 
 jobs:
-  build-and-deploy-frontend:
+  build-and-test:
     runs-on: ubuntu-latest
 
     steps:
@@ -47,6 +47,10 @@ jobs:
         name: frontend-build
         path: frontend/build/
 
+    - name: List build directory contents
+      run: |
+        ls -la frontend/build
+
     - name: Run tests with coverage
       run: |
         cd frontend
@@ -60,37 +64,58 @@ jobs:
 
   deploy-to-development:
     runs-on: ubuntu-latest
-    needs: build-and-deploy-frontend
+    needs: build-and-test
     if: github.ref == 'refs/heads/main'
     environment:
       name: Development
 
     steps:
-    - name: Deploy to Firebase Hosting
+    - name: Checkout code
+      uses: actions/checkout@v3
+
+    - name: Download frontend build artifacts
+      uses: actions/download-artifact@v4
+      with:
+        name: frontend-build
+        path: frontend/build
+
+    - name: Set up Firebase credentials
+      run: |
+        echo '${{ secrets.GOOGLE_APPLICATION_CREDENTIALS_DEV }}' > $HOME/service-account.json
+
+    - name: Deploy to Firebase Hosting (Development)
       env:
-        FIREBASE_TOKEN: ${{ secrets.FIREBASE_TOKEN }}
+        GOOGLE_APPLICATION_CREDENTIALS: $HOME/service-account.json
       run: |
         cd frontend
         npm install -g firebase-tools
-        firebase deploy --only hosting --token $FIREBASE_TOKEN
+        firebase deploy --only hosting --project company-vehicle-management
 
   deploy-to-production:
     runs-on: ubuntu-latest
-    needs: build-and-deploy-frontend
+    needs: build-and-test
     if: github.ref == 'refs/heads/production'
     environment:
       name: Production
 
     steps:
-    - name: Manual approval required
-      uses: hmarr/auto-approve-action@v2
-      with:
-        github-token: ${{ secrets.GITHUB_TOKEN }}
+    - name: Checkout code
+      uses: actions/checkout@v3
 
-    - name: Deploy to Firebase Hosting
+    - name: Download frontend build artifacts
+      uses: actions/download-artifact@v4
+      with:
+        name: frontend-build
+        path: frontend/build
+
+    - name: Set up Firebase credentials
+      run: |
+        echo '${{ secrets.GOOGLE_APPLICATION_CREDENTIALS_PROD }}' > $HOME/service-account.json
+
+    - name: Deploy to Firebase Hosting (Production)
       env:
-        FIREBASE_TOKEN: ${{ secrets.FIREBASE_TOKEN }}
+        GOOGLE_APPLICATION_CREDENTIALS: $HOME/service-account.json
       run: |
         cd frontend
         npm install -g firebase-tools
-        firebase deploy --only hosting --token $FIREBASE_TOKEN
+        firebase deploy --only hosting --project company-vehicle-management
