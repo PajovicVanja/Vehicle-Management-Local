@@ -75,6 +75,12 @@ jobs:
         ls $JAVA_HOME/bin
         $JAVA_HOME/bin/java -version
 
+    - name: Prepare Environment for SonarCloud
+      run: |
+        export PATH=$JAVA_HOME/bin:$PATH
+        echo "PATH updated for Java: $PATH"
+        java -version
+
     - name: SonarCloud Scan
       uses: sonarsource/sonarcloud-github-action@v1.5
       with:
