@@ -72,7 +72,8 @@ jobs:
     - name: Debug Java Setup
       run: |
         echo "JAVA_HOME: $JAVA_HOME"
-        java -version
+        ls $JAVA_HOME/bin
+        $JAVA_HOME/bin/java -version
 
     - name: SonarCloud Scan
       uses: sonarsource/sonarcloud-github-action@v1.5
@@ -80,7 +81,9 @@ jobs:
         projectBaseDir: backend
       env:
         SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
-        JAVA_HOME: ${{ env.JAVA_HOME }}
+        JAVA_HOME: $JAVA_HOME
+
+
 
     - name: Store build artifacts
       uses: actions/upload-artifact@v4
