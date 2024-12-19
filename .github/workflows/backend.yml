@@ -75,6 +75,11 @@ jobs:
         ls $JAVA_HOME/bin
         $JAVA_HOME/bin/java -version
 
+    - name: Fix Permissions for Java (if needed)
+      run: |
+        chmod +x $JAVA_HOME/bin/java
+        ls -la $JAVA_HOME/bin/java
+
     - name: Prepare Environment for SonarCloud
       run: |
         export PATH=$JAVA_HOME/bin:$PATH
