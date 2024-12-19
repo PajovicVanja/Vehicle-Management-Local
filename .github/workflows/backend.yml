@@ -17,6 +17,8 @@ jobs:
     steps:
     - name: Checkout code
       uses: actions/checkout@v3
+      with:
+        fetch-depth: 0  # Required for SonarCloud analysis
 
     - name: Setup Node.js
       uses: actions/setup-node@v3
@@ -50,12 +52,10 @@ jobs:
         echo "FIREBASE_TOKEN_URI=${{ vars.FIREBASE_TOKEN_URI }}" >> $GITHUB_ENV
         echo "FIREBASE_PRIVATE_KEY=${{ secrets.FIREBASE_PRIVATE_KEY }}" >> $GITHUB_ENV
 
-
     - name: Run tests with coverage
       run: |
         cd backend
         npm test -- --coverage --env-file=.env.test
-
 
     - name: Upload coverage report
       uses: actions/upload-artifact@v4
@@ -63,38 +63,11 @@ jobs:
         name: backend-coverage
         path: backend/coverage/
 
-    - name: Setup Java
-      uses: actions/setup-java@v3
-      with:
-        java-version: 17
-        distribution: 'temurin'
-
-    - name: Debug Java Setup
-      run: |
-        echo "JAVA_HOME: $JAVA_HOME"
-        ls $JAVA_HOME/bin
-        $JAVA_HOME/bin/java -version
-
-    - name: Fix Permissions for Java (if needed)
-      run: |
-        chmod +x $JAVA_HOME/bin/java
-        ls -la $JAVA_HOME/bin/java
-
-    - name: Prepare Environment for SonarCloud
-      run: |
-        export PATH=$JAVA_HOME/bin:$PATH
-        echo "PATH updated for Java: $PATH"
-        java -version
-
     - name: SonarCloud Scan
-      uses: sonarsource/sonarcloud-github-action@v1.5
-      with:
-        projectBaseDir: backend
+      uses: SonarSource/sonarqube-scan-action@v4
       env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}  # For PR info
         SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
-        JAVA_HOME: $JAVA_HOME
-
-
 
     - name: Store build artifacts
       uses: actions/upload-artifact@v4
