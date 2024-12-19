@@ -63,6 +63,12 @@ jobs:
         name: backend-coverage
         path: backend/coverage/
 
+    - name: Setup Java
+      uses: actions/setup-java@v3
+      with:
+        java-version: 17
+        distribution: 'temurin'
+
     - name: SonarCloud Scan
       uses: sonarsource/sonarcloud-github-action@v1.5
       with:
