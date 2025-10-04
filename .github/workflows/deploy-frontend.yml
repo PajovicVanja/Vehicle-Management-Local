@@ -2,9 +2,9 @@ name: Build & Deploy Frontend (Firebase Hosting)
 
 on:
   push:
-    branches: [ main ]   # change if your default branch isn't 'main'
+    branches: [ vui ]   # change if your default branch isn't 'main'
   pull_request:
-    branches: [ main ]
+    branches: [ vui ]
   workflow_dispatch:
 
 jobs:
