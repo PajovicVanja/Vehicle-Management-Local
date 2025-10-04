@@ -1,4 +1,4 @@
-Output generated at: 2025-10-04T15:27:34.315Z
+Output generated at: 2025-10-04T15:41:32.614Z
 Project root: C:\aaFERI\PREDMETI\3. Semestar\VUI\App\RIRSsolo
 
 ====================
@@ -17,8 +17,8 @@ const { setCors, handlePreflight } = require('../_lib/cors');
 
 module.exports = async (req, res) => {
   if (handlePreflight(req, res)) return; // OPTIONS
-  setCors(res);
-  const seg = req.query.path;
+setCors(req, res);  
+const seg = req.query.path;
   const parts = Array.isArray(seg) ? seg : (seg ? [seg] : []);
 
   const user = await verifyAuth(req, res);
@@ -91,7 +91,7 @@ const { setCors, handlePreflight } = require('../_lib/cors');
 
 module.exports = async (req, res) => {
   if (handlePreflight(req, res)) return; // OPTIONS
-  setCors(res);
+  setCors(req, res);
   const seg = req.query.path;
   const parts = Array.isArray(seg) ? seg : (seg ? [seg] : []);
 
@@ -148,7 +148,7 @@ const { setCors, handlePreflight } = require('../_lib/cors');
 
 module.exports = async (req, res) => {
   if (handlePreflight(req, res)) return; // OPTIONS
-  setCors(res);
+  setCors(req, res);
 
   const seg = req.query.path;
   const parts = Array.isArray(seg) ? seg : (seg ? [seg] : []);
@@ -393,18 +393,27 @@ module.exports = cloudinary;
 Path: api\_lib\cors.js
 --- CONTENT START ---
 // api/_lib/cors.js
-const ALLOW_ORIGIN = 'https://company-vehicle-management.web.app'; // your Firebase Hosting origin
+const ALLOW_ORIGINS = new Set([
+  'https://company-vehicle-management.web.app',
+  'https://company-vehicle-management.firebaseapp.com',
+  'http://localhost:3000'
+]);
 
-function setCors(res) {
-  res.setHeader('Access-Control-Allow-Origin', ALLOW_ORIGIN);
-  res.setHeader('Vary', 'Origin'); // good practice for caches
+function setCors(req, res) {
+  const origin = req.headers.origin;
+  if (origin && ALLOW_ORIGINS.has(origin)) {
+    res.setHeader('Access-Control-Allow-Origin', origin);
+  } else {
+    // fallback (pick your primary prod origin)
+    res.setHeader('Access-Control-Allow-Origin', 'https://company-vehicle-management.web.app');
+  }
+  res.setHeader('Vary', 'Origin');
   res.setHeader('Access-Control-Allow-Methods', 'GET,POST,PATCH,DELETE,OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
-  // no cookies used, so no credentials needed
 }
 
 function handlePreflight(req, res) {
-  setCors(res);
+  setCors(req, res);
   if (req.method === 'OPTIONS') {
     res.status(204).end();
     return true;
@@ -2502,7 +2511,7 @@ const config = {
     const onFirebase = host.endsWith('.web.app') || host.endsWith('.firebaseapp.com');
     if (onFirebase) {
       // use your real Vercel app name below
-      return 'https://vehicle-management-frontend-alpha.vercel.app/api';
+      return 'https://vehicle-management-git-vui-pajovicvanjas-projects.vercel.app/api';
     }
     // local dev fallbacks:
     // - if running `vercel dev` on port 3000 with CRA on 3000, use explicit origin:

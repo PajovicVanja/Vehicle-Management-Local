@@ -1,0 +1,60 @@
+name: Build & Deploy Frontend (Firebase Hosting)
+
+on:
+  push:
+    branches: [ main ]   # change if your default branch isn't 'main'
+  pull_request:
+    branches: [ main ]
+  workflow_dispatch:
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+      pull-requests: write
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Use Node.js 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install frontend deps
+        run: npm ci --prefix frontend
+
+      - name: Build frontend (inject API URL)
+        run: npm run build --prefix frontend
+        env:
+          # put your Vercel API base here (or set as a secret, see step 2)
+          REACT_APP_API_URL: ${{ secrets.REACT_APP_API_URL }}
+          # CRA sometimes treats warnings as CI errors; disable that
+          CI: "false"
+
+      # ---- Deploys ----
+      # PRs → preview channels; auto-comment link on the PR
+      - name: Deploy PR Preview
+        if: ${{ github.event_name == 'pull_request' }}
+        uses: FirebaseExtended/action-hosting-deploy@v0
+        with:
+          repoToken: ${{ secrets.GITHUB_TOKEN }}
+          firebaseServiceAccount: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+          projectId: company-vehicle-management
+          channelId: pr-${{ github.event.number }}
+          expires: 7d
+
+      # Push to main → live production
+      - name: Deploy to Production
+        if: ${{ github.event_name != 'pull_request' }}
+        uses: FirebaseExtended/action-hosting-deploy@v0
+        with:
+          repoToken: ${{ secrets.GITHUB_TOKEN }}
+          firebaseServiceAccount: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+          projectId: company-vehicle-management
+          channelId: live

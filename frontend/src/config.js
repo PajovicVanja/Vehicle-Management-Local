@@ -1,17 +1,20 @@
 // frontend/src/config.js
+const ENV_URL = process.env.REACT_APP_API_URL;
+
 const config = {
   getApiUrl: async () => {
+    if (ENV_URL) return ENV_URL; // ✅ explicit at build time
+
+    // Fallbacks, only used in dev if you forget to set the env var:
     const host = typeof window !== 'undefined' ? window.location.hostname : '';
-    const onFirebase = host.endsWith('.web.app') || host.endsWith('.firebaseapp.com');
+    const onFirebase =
+      host.endsWith('.web.app') || host.endsWith('.firebaseapp.com');
+
     if (onFirebase) {
-      // use your real Vercel app name below
       return 'https://vehicle-management-git-vui-pajovicvanjas-projects.vercel.app/api';
     }
-    // local dev fallbacks:
-    // - if running `vercel dev` on port 3000 with CRA on 3000, use explicit origin:
-    //   return 'http://localhost:3000/api';
-    // - if you deploy both on same origin (rare), '/api' is fine.
     return 'http://localhost:3000/api';
-  }
+  },
 };
+
 export default config;
