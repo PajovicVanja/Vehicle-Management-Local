@@ -11,7 +11,7 @@ const config = {
       host.endsWith('.web.app') || host.endsWith('.firebaseapp.com');
 
     if (onFirebase) {
-      return 'https://vehicle-management-git-vui-pajovicvanjas-projects.vercel.app/api';
+      return 'https://vehicle-management-frontend-alpha.vercel.app/api';
     }
     return 'http://localhost:3000/api';
   },
