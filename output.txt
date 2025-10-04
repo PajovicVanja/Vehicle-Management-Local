@@ -1,4 +1,4 @@
-Output generated at: 2025-10-04T17:05:00.669Z
+Output generated at: 2025-10-04T17:14:42.795Z
 Project root: C:\aaFERI\PREDMETI\3. Semestar\VUI\App\RIRSsolo
 
 ====================
@@ -2537,25 +2537,10 @@ export default ViewRes;
 === FILE START ===
 Path: frontend\src\config.js
 --- CONTENT START ---
-// frontend/src/config.js
-const ENV_URL = process.env.REACT_APP_API_URL;
-
+// super simple: same-origin by default; can still override in env
 const config = {
-  getApiUrl: async () => {
-    if (ENV_URL) return ENV_URL; // ✅ explicit at build time
-
-    // Fallbacks, only used in dev if you forget to set the env var:
-    const host = typeof window !== 'undefined' ? window.location.hostname : '';
-    const onFirebase =
-      host.endsWith('.web.app') || host.endsWith('.firebaseapp.com');
-
-    if (onFirebase) {
-      return 'https://vehicle-management-frontend-alpha.vercel.app/api';
-    }
-    return 'http://localhost:3000/api';
-  },
+  getApiUrl: async () => process.env.REACT_APP_API_URL || '/api',
 };
-
 export default config;
 --- CONTENT END ---
 === FILE END ===
@@ -3200,6 +3185,7 @@ Path: package.json
     "formidable": "^3.5.0"
   },
     "scripts": {
+    "build:frontend": "npm --prefix frontend ci && npm --prefix frontend run build",
     "test": "jest",
     "test:api": "jest",
     "test:frontend": "npm --prefix frontend test -- --watchAll=false"
@@ -3217,21 +3203,22 @@ Path: vercel.json
 --- CONTENT START ---
 {
   "version": 2,
-  "headers": [
+  "builds": [
+    { "src": "api/**/*.js", "use": "@vercel/node" },
     {
-      "source": "/api/(.*)",
-      "headers": [
-        { "key": "Access-Control-Allow-Origin", "value": "*" },
-        { "key": "Access-Control-Allow-Methods", "value": "GET,POST,PATCH,DELETE,OPTIONS" },
-        { "key": "Access-Control-Allow-Headers", "value": "Authorization, Content-Type, X-Requested-With" },
-        { "key": "Access-Control-Allow-Credentials", "value": "true" }
-      ]
+      "src": "frontend/package.json",
+      "use": "@vercel/static-build",
+      "config": { "distDir": "build" }
     }
   ],
-  "rewrites": [
-    { "source": "/api/auth/(.*)",        "destination": "/api/auth/[...path].js?path=$1" },
-    { "source": "/api/vehicle/(.*)",     "destination": "/api/vehicle/[...path].js?path=$1" },
-    { "source": "/api/reservation/(.*)", "destination": "/api/reservation/[...path].js?path=$1" }
+  "routes": [
+    { "src": "^/api/auth/(.*)$",        "dest": "/api/auth/[...path].js?path=$1" },
+    { "src": "^/api/vehicle/(.*)$",     "dest": "/api/vehicle/[...path].js?path=$1" },
+    { "src": "^/api/reservation/(.*)$", "dest": "/api/reservation/[...path].js?path=$1" },
+    { "src": "^/api/health$",           "dest": "/api/health.js" },
+
+    { "src": "^/(.*\\.(?:css|js|map|png|jpg|jpeg|gif|svg|ico|txt|json))$", "dest": "frontend/build/$1" },
+    { "src": "^(?!/api/).*", "dest": "frontend/build/index.html" }
   ]
 }
 --- CONTENT END ---
