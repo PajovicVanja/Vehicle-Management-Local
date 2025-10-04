@@ -1,9 +1,7 @@
-// components/AddVehicle.js
-import React, { useState } from 'react'; // Remove useEffect
-
+import React, { useState } from 'react';
 import '../CSS/Profile.css';
 import '../CSS/AddVehicle.css';
-import { db, collection, doc, setDoc } from '../firebaseClient'; // Import Firestore
+import { createVehicle } from '../services/vehicleService';
 
 function AddVehicle({ token, setShowAddVehicle }) {
   const [vehicleName, setVehicleName] = useState('');
@@ -11,81 +9,33 @@ function AddVehicle({ token, setShowAddVehicle }) {
   const [engine, setEngine] = useState('');
   const [color, setColor] = useState('');
   const [year, setYear] = useState('');
-  // Remove setImage and setError
+  const [msg, setMsg] = useState('');
 
   const handleAddVehicle = async (e) => {
     e.preventDefault();
-    // Generate a unique document reference with a new ID
-    const vehicleRef = doc(collection(db, 'vehicles'));
-    const vehicleId = vehicleRef.id;
-    const status = 'available';
-
-    // Create a new vehicle object including the vehicleId
-    const newVehicle = {
-      vehicleId,           // Add the unique ID to the vehicle data
-      vehicleName,
-      engine,
-      hp,
-      color,
-      year,
-      status,
-    };
-
-    try {
-      // Add the document with the custom ID and data
-      await setDoc(vehicleRef, newVehicle);
-      console.log(`Added vehicle ${newVehicle.vehicleName} with ID: ${vehicleId}`);
-    } catch (error) {
-      console.error("Error adding vehicle:", error);
+    const vehicle = { vehicleName, engine, hp, color, year };
+    const result = await createVehicle(vehicle, token);
+    if (result.success) {
+      setShowAddVehicle(false);
+    } else {
+      setMsg(result.error || 'Failed to add vehicle');
     }
-
-    setShowAddVehicle(false);
   };
 
   return (
     <div className="add-vehicle-container">
       <h2>Add vehicle</h2>
       <form onSubmit={handleAddVehicle}>
-        <input
-          type="vehicleName"
-          placeholder="Vehicle Name"
-          value={vehicleName}
-          onChange={(e) => setVehicleName(e.target.value)}
-          className="add-vehicle-input"
-        />
-        <input
-          type="vehicleColor"
-          placeholder="Vehicle Color"
-          value={color}
-          onChange={(e) => setColor(e.target.value)}
-          className="add-vehicle-input"
-        />
-        <input
-          type="year"
-          placeholder="Vehicle Year"
-          value={year}
-          onChange={(e) => setYear(e.target.value)}
-          className="add-vehicle-input"
-        />
-        <input
-          type="engine"
-          placeholder="Engine"
-          value={engine}
-          onChange={(e) => setEngine(e.target.value)}
-          className="add-vehicle-input"
-        />
-        <input
-          type="hp"
-          placeholder="HP"
-          value={hp}
-          onChange={(e) => setHp(e.target.value)}
-          className="add-vehicle-input"
-        />
+        <input placeholder="Vehicle Name" value={vehicleName} onChange={(e)=>setVehicleName(e.target.value)} className="add-vehicle-input" />
+        <input placeholder="Vehicle Color" value={color} onChange={(e)=>setColor(e.target.value)} className="add-vehicle-input" />
+        <input placeholder="Vehicle Year" value={year} onChange={(e)=>setYear(e.target.value)} className="add-vehicle-input" />
+        <input placeholder="Engine" value={engine} onChange={(e)=>setEngine(e.target.value)} className="add-vehicle-input" />
+        <input placeholder="HP" value={hp} onChange={(e)=>setHp(e.target.value)} className="add-vehicle-input" />
         <button type="submit" className="add-vehicle-button">Add vehicle</button>
       </form>
-      <button onClick={() => setShowAddVehicle(false)} className='goto-vehicle-select-button'>Back to Vehicle selection</button>
+      <button onClick={() => setShowAddVehicle(false)} className="goto-vehicle-select-button">Back to Vehicle selection</button>
+      {msg && <p className="error-message">{msg}</p>}
     </div>
   );
 }
-
 export default AddVehicle;

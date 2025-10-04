@@ -1,6 +1,22 @@
 // services/vehicleService.js
 import config from '../config';
 
+export const createVehicle = async (vehicle, token) => {
+  try {
+    const API_URL = await config.getApiUrl();
+    const res = await fetch(`${API_URL}/vehicle/vehicles`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+      body: JSON.stringify(vehicle),
+    });
+    const data = await res.json();
+    if (res.ok) return { success: true, data };
+    return { success: false, error: data.message };
+  } catch (e) {
+    return { success: false, error: e.message };
+  }
+};
+
 export const getVehicleData = async (token) => {
   try {
     const API_URL = await config.getApiUrl();

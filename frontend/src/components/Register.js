@@ -3,48 +3,45 @@ import '../CSS/LoginRegister.css';
 import { auth, db } from '../firebaseClient';
 import { createUserWithEmailAndPassword } from 'firebase/auth';
 import { doc, setDoc } from 'firebase/firestore';
-import UploadLicense from './UploadLicense'; // Import UploadLicense component
+import UploadLicense from './UploadLicense';
 
 function Register({ setToken }) {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [showUploadLicense, setShowUploadLicense] = useState(false);
+  const [uploadToken, setUploadToken] = useState(null); // <-- keep token for UploadLicense
 
   const handleRegister = async (e) => {
     e.preventDefault();
-    console.log('Starting registration...');
     try {
       // Create the user
       const userCredential = await createUserWithEmailAndPassword(auth, email, password);
       const user = userCredential.user;
 
-      console.log('Registered user UID:', user.uid);
-
-      // Get and set the authentication token
-      const token = await user.getIdToken();
-      setToken(token);
+      // Get a fresh ID token once
+      const idToken = await user.getIdToken();
+      setToken(idToken);
+      setUploadToken(idToken);
 
       // Add user data to Firestore
       await setDoc(doc(db, 'users', user.uid), {
         email: user.email,
-        role: 'Driver', // Default role
-        createdAt: new Date().toISOString(), // ISO format for consistency
+        role: 'Driver',
+        createdAt: new Date().toISOString(),
       });
 
-      console.log('User successfully added to Firestore.');
-
-      // Show Upload License component
+      // Show Upload License step
       setShowUploadLicense(true);
       setError('');
-    } catch (error) {
-      console.error('Error during registration:', error);
-      setError(error.message);
+    } catch (err) {
+      console.error('Error during registration:', err);
+      setError(err.message);
     }
   };
 
   if (showUploadLicense) {
-    return <UploadLicense token={auth.currentUser?.accessToken || ''} />;
+    return <UploadLicense token={uploadToken || ''} />;
   }
 
   return (

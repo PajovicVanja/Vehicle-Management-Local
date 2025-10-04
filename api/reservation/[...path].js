@@ -1,8 +1,11 @@
 // api/reservation/[...path].js
 const { db } = require('../_lib/firebaseAdmin');
 const { verifyAuth } = require('../_lib/verifyAuth');
+const { setCors, handlePreflight } = require('../_lib/cors');
 
 module.exports = async (req, res) => {
+  if (handlePreflight(req, res)) return; // OPTIONS
+  setCors(res);
   const seg = req.query.path;
   const parts = Array.isArray(seg) ? seg : (seg ? [seg] : []);
 

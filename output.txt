@@ -1,4 +1,4 @@
-Output generated at: 2025-10-04T13:53:34.609Z
+Output generated at: 2025-10-04T15:12:01.347Z
 Project root: C:\aaFERI\PREDMETI\3. Semestar\VUI\App\RIRSsolo
 
 ====================
@@ -13,8 +13,11 @@ const formidable = require('formidable');
 const cloudinary = require('../_lib/cloudinary');
 const { db } = require('../_lib/firebaseAdmin');
 const { verifyAuth } = require('../_lib/verifyAuth');
+const { setCors, handlePreflight } = require('../_lib/cors');
 
 module.exports = async (req, res) => {
+  if (handlePreflight(req, res)) return; // OPTIONS
+  setCors(res);
   const seg = req.query.path;
   const parts = Array.isArray(seg) ? seg : (seg ? [seg] : []);
 
@@ -84,8 +87,11 @@ Path: api\reservation\[...path].js
 // api/reservation/[...path].js
 const { db } = require('../_lib/firebaseAdmin');
 const { verifyAuth } = require('../_lib/verifyAuth');
+const { setCors, handlePreflight } = require('../_lib/cors');
 
 module.exports = async (req, res) => {
+  if (handlePreflight(req, res)) return; // OPTIONS
+  setCors(res);
   const seg = req.query.path;
   const parts = Array.isArray(seg) ? seg : (seg ? [seg] : []);
 
@@ -138,9 +144,12 @@ Path: api\vehicle\[...path].js
 // api/vehicle/[...path].js
 const { db } = require('../_lib/firebaseAdmin');
 const { verifyAuth } = require('../_lib/verifyAuth');
+const { setCors, handlePreflight } = require('../_lib/cors');
 
 module.exports = async (req, res) => {
-  // path segments after /api/vehicle/
+  if (handlePreflight(req, res)) return; // OPTIONS
+  setCors(res);
+
   const seg = req.query.path;
   const parts = Array.isArray(seg) ? seg : (seg ? [seg] : []);
 
@@ -180,7 +189,20 @@ module.exports = async (req, res) => {
 
       return res.status(405).json({ message: 'Method not allowed' });
     }
-
+    if (parts.length === 1 && parts[0] === 'vehicles' && req.method === 'POST') {
+  if (user.role !== 'Admin') {
+    return res.status(403).json({ message: 'Only admins can add vehicles.' });
+  }
+  const { vehicleName, engine, hp, color, year } = req.body || {};
+  if (!vehicleName || !engine || !hp || !color || !year) {
+    return res.status(400).json({ message: 'Missing required fields.' });
+  }
+  const ref = db.collection('vehicles').doc();
+  const vehicleId = ref.id;
+  const newVehicle = { vehicleId, vehicleName, engine, hp, color, year, status: 'available' };
+  await ref.set(newVehicle);
+  return res.status(201).json({ success: true, data: newVehicle });
+}
     // PATCH actions on /api/vehicle/vehicles/:vehicleId/(reserve|unreserve|repair)
     if (parts.length === 3 && parts[0] === 'vehicles') {
       const vehicleId = parts[1];
@@ -364,6 +386,33 @@ cloudinary.config({
 });
 
 module.exports = cloudinary;
+--- CONTENT END ---
+=== FILE END ===
+
+=== FILE START ===
+Path: api\_lib\cors.js
+--- CONTENT START ---
+// api/_lib/cors.js
+const ALLOW_ORIGIN = 'https://company-vehicle-management.web.app'; // your Firebase Hosting origin
+
+function setCors(res) {
+  res.setHeader('Access-Control-Allow-Origin', ALLOW_ORIGIN);
+  res.setHeader('Vary', 'Origin'); // good practice for caches
+  res.setHeader('Access-Control-Allow-Methods', 'GET,POST,PATCH,DELETE,OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+  // no cookies used, so no credentials needed
+}
+
+function handlePreflight(req, res) {
+  setCors(res);
+  if (req.method === 'OPTIONS') {
+    res.status(204).end();
+    return true;
+  }
+  return false;
+}
+
+module.exports = { setCors, handlePreflight };
 --- CONTENT END ---
 === FILE END ===
 
@@ -1233,12 +1282,10 @@ export default App;
 === FILE START ===
 Path: frontend\src\components\AddVehicle.js
 --- CONTENT START ---
-// components/AddVehicle.js
-import React, { useState } from 'react'; // Remove useEffect
-
+import React, { useState } from 'react';
 import '../CSS/Profile.css';
 import '../CSS/AddVehicle.css';
-import { db, collection, doc, setDoc } from '../firebaseClient'; // Import Firestore
+import { createVehicle } from '../services/vehicleService';
 
 function AddVehicle({ token, setShowAddVehicle }) {
   const [vehicleName, setVehicleName] = useState('');
@@ -1246,83 +1293,35 @@ function AddVehicle({ token, setShowAddVehicle }) {
   const [engine, setEngine] = useState('');
   const [color, setColor] = useState('');
   const [year, setYear] = useState('');
-  // Remove setImage and setError
+  const [msg, setMsg] = useState('');
 
   const handleAddVehicle = async (e) => {
     e.preventDefault();
-    // Generate a unique document reference with a new ID
-    const vehicleRef = doc(collection(db, 'vehicles'));
-    const vehicleId = vehicleRef.id;
-    const status = 'available';
-
-    // Create a new vehicle object including the vehicleId
-    const newVehicle = {
-      vehicleId,           // Add the unique ID to the vehicle data
-      vehicleName,
-      engine,
-      hp,
-      color,
-      year,
-      status,
-    };
-
-    try {
-      // Add the document with the custom ID and data
-      await setDoc(vehicleRef, newVehicle);
-      console.log(`Added vehicle ${newVehicle.vehicleName} with ID: ${vehicleId}`);
-    } catch (error) {
-      console.error("Error adding vehicle:", error);
+    const vehicle = { vehicleName, engine, hp, color, year };
+    const result = await createVehicle(vehicle, token);
+    if (result.success) {
+      setShowAddVehicle(false);
+    } else {
+      setMsg(result.error || 'Failed to add vehicle');
     }
-
-    setShowAddVehicle(false);
   };
 
   return (
     <div className="add-vehicle-container">
       <h2>Add vehicle</h2>
       <form onSubmit={handleAddVehicle}>
-        <input
-          type="vehicleName"
-          placeholder="Vehicle Name"
-          value={vehicleName}
-          onChange={(e) => setVehicleName(e.target.value)}
-          className="add-vehicle-input"
-        />
-        <input
-          type="vehicleColor"
-          placeholder="Vehicle Color"
-          value={color}
-          onChange={(e) => setColor(e.target.value)}
-          className="add-vehicle-input"
-        />
-        <input
-          type="year"
-          placeholder="Vehicle Year"
-          value={year}
-          onChange={(e) => setYear(e.target.value)}
-          className="add-vehicle-input"
-        />
-        <input
-          type="engine"
-          placeholder="Engine"
-          value={engine}
-          onChange={(e) => setEngine(e.target.value)}
-          className="add-vehicle-input"
-        />
-        <input
-          type="hp"
-          placeholder="HP"
-          value={hp}
-          onChange={(e) => setHp(e.target.value)}
-          className="add-vehicle-input"
-        />
+        <input placeholder="Vehicle Name" value={vehicleName} onChange={(e)=>setVehicleName(e.target.value)} className="add-vehicle-input" />
+        <input placeholder="Vehicle Color" value={color} onChange={(e)=>setColor(e.target.value)} className="add-vehicle-input" />
+        <input placeholder="Vehicle Year" value={year} onChange={(e)=>setYear(e.target.value)} className="add-vehicle-input" />
+        <input placeholder="Engine" value={engine} onChange={(e)=>setEngine(e.target.value)} className="add-vehicle-input" />
+        <input placeholder="HP" value={hp} onChange={(e)=>setHp(e.target.value)} className="add-vehicle-input" />
         <button type="submit" className="add-vehicle-button">Add vehicle</button>
       </form>
-      <button onClick={() => setShowAddVehicle(false)} className='goto-vehicle-select-button'>Back to Vehicle selection</button>
+      <button onClick={() => setShowAddVehicle(false)} className="goto-vehicle-select-button">Back to Vehicle selection</button>
+      {msg && <p className="error-message">{msg}</p>}
     </div>
   );
 }
-
 export default AddVehicle;
 --- CONTENT END ---
 === FILE END ===
@@ -1669,6 +1668,8 @@ function Register({ setToken }) {
       // Create the user
       const userCredential = await createUserWithEmailAndPassword(auth, email, password);
       const user = userCredential.user;
+      const idToken = await user.getIdToken();
+      setToken(idToken);
 
       console.log('Registered user UID:', user.uid);
 
@@ -1695,7 +1696,7 @@ function Register({ setToken }) {
   };
 
   if (showUploadLicense) {
-    return <UploadLicense token={auth.currentUser?.accessToken || ''} />;
+    return <UploadLicense token={idToken} />;
   }
 
   return (
@@ -1911,21 +1912,24 @@ function Reserve({
     }
   }, [token]);
 
-  useEffect(() => {
-    const fetchData = async () => {
-      setLoading(true);
-      const userData = await getUserData(token);
-      if (userData.success) {
-        setRole(userData.data.role || "Driver");
-        const auth = getAuth();
-        const user = auth.currentUser;
-        user ? setUid(user.uid) : setUid(null);
-
-        fetchVehicles();
-      }
-    };
-    fetchData();
-  }, [token, fetchVehicles]);
+useEffect(() => {
+  const fetchData = async () => {
+    setLoading(true);
+    const userData = await getUserData(token);
+    if (userData.success) {
+      setRole(userData.data.role || "Driver");
+      const auth = getAuth();
+      const user = auth.currentUser;
+      user ? setUid(user.uid) : setUid(null);
+      await fetchVehicles();
+    } else {
+      // IMPORTANT: clear loading and show a helpful message
+      setMessage(userData.error || "Failed to load profile");
+      setLoading(false);
+    }
+  };
+  fetchData();
+}, [token, fetchVehicles]);
 
   useEffect(() => {
     if (reservations.length > 0 && uid) {
@@ -2496,11 +2500,22 @@ export default ViewRes;
 === FILE START ===
 Path: frontend\src\config.js
 --- CONTENT START ---
-// Point the frontend to Vercel serverless API under the same domain
+// frontend/src/config.js
 const config = {
-  getApiUrl: async () => '/api'
+  getApiUrl: async () => {
+    const host = typeof window !== 'undefined' ? window.location.hostname : '';
+    const onFirebase = host.endsWith('.web.app') || host.endsWith('.firebaseapp.com');
+    if (onFirebase) {
+      // use your real Vercel app name below
+      return 'https://<YOUR-VERCEL-APP>.vercel.app/api';
+    }
+    // local dev fallbacks:
+    // - if running `vercel dev` on port 3000 with CRA on 3000, use explicit origin:
+    //   return 'http://localhost:3000/api';
+    // - if you deploy both on same origin (rare), '/api' is fine.
+    return 'http://localhost:3000/api';
+  }
 };
-
 export default config;
 --- CONTENT END ---
 === FILE END ===
@@ -2622,16 +2637,19 @@ export const getUserData = async (token) => {
   try {
     const API_URL = await config.getApiUrl();
     const response = await fetch(`${API_URL}/auth/profile`, {
-      headers: {
-        Authorization: `Bearer ${token}`,
-      },
+      headers: { Authorization: `Bearer ${token}` },
     });
-    const data = await response.json();
-    if (response.ok) {
-      return { success: true, data };
-    } else {
-      return { success: false, error: data.message };
+
+    const ct = response.headers.get('content-type') || '';
+    if (!ct.includes('application/json')) {
+      const text = await response.text();
+      // Make the error explicit instead of throwing JSON parse errors
+      return { success: false, error: `Non-JSON from API (${response.status}). ${text.slice(0,100)}…` };
     }
+
+    const data = await response.json();
+    if (response.ok) return { success: true, data };
+    return { success: false, error: data.message };
   } catch (error) {
     return { success: false, error: error.message };
   }
@@ -2713,6 +2731,22 @@ Path: frontend\src\services\vehicleService.js
 --- CONTENT START ---
 // services/vehicleService.js
 import config from '../config';
+
+export const createVehicle = async (vehicle, token) => {
+  try {
+    const API_URL = await config.getApiUrl();
+    const res = await fetch(`${API_URL}/vehicle/vehicles`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+      body: JSON.stringify(vehicle),
+    });
+    const data = await res.json();
+    if (res.ok) return { success: true, data };
+    return { success: false, error: data.message };
+  } catch (e) {
+    return { success: false, error: e.message };
+  }
+};
 
 export const getVehicleData = async (token) => {
   try {

@@ -1,9 +1,12 @@
 // api/vehicle/[...path].js
 const { db } = require('../_lib/firebaseAdmin');
 const { verifyAuth } = require('../_lib/verifyAuth');
+const { setCors, handlePreflight } = require('../_lib/cors');
 
 module.exports = async (req, res) => {
-  // path segments after /api/vehicle/
+  if (handlePreflight(req, res)) return; // OPTIONS
+  setCors(res);
+
   const seg = req.query.path;
   const parts = Array.isArray(seg) ? seg : (seg ? [seg] : []);
 
@@ -43,7 +46,20 @@ module.exports = async (req, res) => {
 
       return res.status(405).json({ message: 'Method not allowed' });
     }
-
+    if (parts.length === 1 && parts[0] === 'vehicles' && req.method === 'POST') {
+  if (user.role !== 'Admin') {
+    return res.status(403).json({ message: 'Only admins can add vehicles.' });
+  }
+  const { vehicleName, engine, hp, color, year } = req.body || {};
+  if (!vehicleName || !engine || !hp || !color || !year) {
+    return res.status(400).json({ message: 'Missing required fields.' });
+  }
+  const ref = db.collection('vehicles').doc();
+  const vehicleId = ref.id;
+  const newVehicle = { vehicleId, vehicleName, engine, hp, color, year, status: 'available' };
+  await ref.set(newVehicle);
+  return res.status(201).json({ success: true, data: newVehicle });
+}
     // PATCH actions on /api/vehicle/vehicles/:vehicleId/(reserve|unreserve|repair)
     if (parts.length === 3 && parts[0] === 'vehicles') {
       const vehicleId = parts[1];
