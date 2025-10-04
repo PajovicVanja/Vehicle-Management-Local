@@ -1,12 +1,11 @@
 {
-  "name": "rirs-mono",
+  "name": "vehicle-management",
   "private": true,
-  "workspaces": [
-    "frontend"
-  ],
+  "engines": { "node": ">=18" },
+  "workspaces": ["frontend"],
   "dependencies": {
     "cloudinary": "^2.5.1",
     "firebase-admin": "^12.7.0",
-    "formidable": "^3.5.1"
+    "formidable": "^3.5.0"
   }
 }

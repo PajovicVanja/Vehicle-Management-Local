@@ -1,4 +1,4 @@
-Output generated at: 2025-10-04T08:42:28.491Z
+Output generated at: 2025-10-04T09:48:36.660Z
 Project root: C:\aaFERI\PREDMETI\3. Semestar\VUI\App\RIRSsolo
 
 ====================
@@ -6,14 +6,492 @@ DUMP FROM DIRECTORIES
 ====================
 
 === FILE START ===
-Path: backend\config\cloudinaryConfig.js
+Path: api\auth\profile.js
 --- CONTENT START ---
+// api/auth/profile.js
+const { db } = require('../_lib/firebaseAdmin');
+const { verifyAuth } = require('../_lib/verifyAuth');
+
+module.exports = async (req, res) => {
+  if (req.method !== 'GET') return res.status(405).json({ message: 'Method not allowed' });
+
+  const user = await verifyAuth(req, res);
+  if (!user) return;
+
+  try {
+    const userDoc = await db.collection('users').doc(user.uid).get();
+    if (!userDoc.exists) return res.status(404).json({ message: 'User document not found' });
+
+    const data = userDoc.data();
+    res.status(200).json({
+      email: data.email,
+      role: data.role || 'Driver',
+      licenseImageUrl: data.licenseImageUrl || null
+    });
+  } catch (e) {
+    console.error('profile error:', e);
+    res.status(500).json({ message: 'Error fetching profile', error: e.message });
+  }
+};
+--- CONTENT END ---
+=== FILE END ===
+
+=== FILE START ===
+Path: api\auth\upload-license.js
+--- CONTENT START ---
+// api/auth/upload-license.js
+const formidable = require('formidable');
+const cloudinary = require('../_lib/cloudinary');
+const { db } = require('../_lib/firebaseAdmin');
+const { verifyAuth } = require('../_lib/verifyAuth');
+
+module.exports = async (req, res) => {
+  if (req.method !== 'POST') return res.status(405).json({ message: 'Method not allowed' });
+
+  const user = await verifyAuth(req, res);
+  if (!user) return;
+
+  try {
+    const form = formidable({ multiples: false, keepExtensions: true });
+    const { fields, files } = await new Promise((resolve, reject) => {
+      form.parse(req, (err, fields, files) => (err ? reject(err) : resolve({ fields, files })));
+    });
+
+    const file = files.licenseImage;
+    if (!file) return res.status(400).json({ message: 'No file uploaded' });
+
+    const upload = await cloudinary.uploader.upload(file.filepath, {
+      folder: `licenses/${user.uid}`
+    });
+
+    const imageUrl = upload.secure_url;
+
+    const ref = db.collection('users').doc(user.uid);
+    const snap = await ref.get();
+    if (!snap.exists) return res.status(404).json({ message: 'User document not found' });
+
+    await ref.update({ licenseImageUrl: imageUrl });
+    res.status(200).json({ message: 'License image uploaded successfully', imageUrl });
+  } catch (e) {
+    console.error('upload-license error:', e);
+    res.status(500).json({ message: 'Image upload failed', error: e.message });
+  }
+};
+--- CONTENT END ---
+=== FILE END ===
+
+=== FILE START ===
+Path: api\health.js
+--- CONTENT START ---
+// api/health.js
+module.exports = (req, res) => {
+  res.status(200).json({ status: 'ok', message: 'API is running', timestamp: new Date().toISOString() });
+};
+--- CONTENT END ---
+=== FILE END ===
+
+=== FILE START ===
+Path: api\reservation\reservation\[resId].js
+--- CONTENT START ---
+// api/reservation/reservation/[resId].js
+const { db } = require('../../_lib/firebaseAdmin');
+const { verifyAuth } = require('../../_lib/verifyAuth');
+
+module.exports = async (req, res) => {
+  const { resId } = req.query;
+  const method = req.method;
+
+  const user = await verifyAuth(req, res);
+  if (!user) return;
+
+  try {
+    if (method === 'GET') {
+      const ref = db.collection('reservation').doc(resId);
+      const doc = await ref.get();
+      if (!doc.exists) return res.status(404).json({ message: 'Reservation not found' });
+      return res.status(200).json({ id: doc.id, ...doc.data() });
+    }
+
+    if (method === 'DELETE') {
+      const snap = await db.collection('reservation').where('reservationId', '==', resId).get();
+      if (snap.empty) return res.status(404).json({ message: 'No reservation found with the specified ID' });
+      const batch = db.batch();
+      snap.forEach(d => batch.delete(d.ref));
+      await batch.commit();
+      return res.status(200).json({ message: `Reservation with id '${resId}' successfully deleted` });
+    }
+
+    return res.status(405).json({ message: 'Method not allowed' });
+  } catch (e) {
+    console.error('reservation [id] error:', e);
+    res.status(500).json({ message: 'Error handling reservation', error: e.message });
+  }
+};
+--- CONTENT END ---
+=== FILE END ===
+
+=== FILE START ===
+Path: api\reservation\reservation.js
+--- CONTENT START ---
+// api/reservation/reservation.js
+const { db } = require('../_lib/firebaseAdmin');
+const { verifyAuth } = require('../_lib/verifyAuth');
+
+module.exports = async (req, res) => {
+  if (req.method !== 'GET') return res.status(405).json({ message: 'Method not allowed' });
+
+  const user = await verifyAuth(req, res);
+  if (!user) return;
+
+  try {
+    const snap = await db.collection('reservation').get();
+    const list = snap.docs.map(d => d.data());
+    res.status(200).json(list);
+  } catch (e) {
+    console.error('get reservations error:', e);
+    res.status(500).json({ message: 'Error fetching reservations', error: e.message });
+  }
+};
+--- CONTENT END ---
+=== FILE END ===
+
+=== FILE START ===
+Path: api\vehicle\admin-reservations.js
+--- CONTENT START ---
+// api/vehicle/admin-reservations.js
+const { db } = require('../_lib/firebaseAdmin');
+const { verifyAuth } = require('../_lib/verifyAuth');
+
+module.exports = async (req, res) => {
+  if (req.method !== 'GET') return res.status(405).json({ message: 'Method not allowed' });
+
+  const user = await verifyAuth(req, res);
+  if (!user) return;
+  if (user.role !== 'Admin') return res.status(403).json({ message: 'Unauthorized access. Only admins can view reservations.' });
+
+  try {
+    const snap = await db.collection('reservation').get();
+    const out = [];
+    for (const doc of snap.docs) {
+      const r = doc.data();
+      let vehicle = null;
+      if (r.vehicleId) {
+        const v = await db.collection('vehicles').doc(r.vehicleId).get();
+        vehicle = v.exists ? v.data() : null;
+      }
+      let userData = null;
+      if (r.userId) {
+        const u = await db.collection('users').doc(r.userId).get();
+        userData = u.exists ? u.data() : null;
+      }
+      out.push({
+        reservationId: r.reservationId,
+        startDate: r.startDate,
+        endDate: r.endDate,
+        status: r.status,
+        user: userData ? { email: userData.email || 'N/A', licenseImageUrl: userData.licenseImageUrl || null } : { email: 'N/A', licenseImageUrl: null },
+        vehicle: vehicle ? { vehicleName: vehicle.vehicleName || 'N/A', color: vehicle.color || 'N/A', engine: vehicle.engine || 'N/A' } : { vehicleName: 'N/A', color: 'N/A', engine: 'N/A' }
+      });
+    }
+    res.status(200).json({ success: true, data: out });
+  } catch (e) {
+    console.error('admin-reservations error:', e);
+    res.status(500).json({ success: false, message: 'Error fetching reservations.', error: e.message });
+  }
+};
+--- CONTENT END ---
+=== FILE END ===
+
+=== FILE START ===
+Path: api\vehicle\malfunctions.js
+--- CONTENT START ---
+// api/vehicle/malfunctions.js
+const { db } = require('../_lib/firebaseAdmin');
+const { verifyAuth } = require('../_lib/verifyAuth');
+
+module.exports = async (req, res) => {
+  if (req.method !== 'GET') return res.status(405).json({ message: 'Method not allowed' });
+
+  const user = await verifyAuth(req, res);
+  if (!user) return;
+
+  try {
+    const snap = await db.collection('malfunctions').get();
+    const list = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+    res.status(200).json(list);
+  } catch (e) {
+    console.error('get malfunctions error:', e);
+    res.status(500).json({ message: 'Error fetching malfunction data.', error: e.message });
+  }
+};
+--- CONTENT END ---
+=== FILE END ===
+
+=== FILE START ===
+Path: api\vehicle\vehicles\[vehicleId]\repair.js
+--- CONTENT START ---
+// api/vehicle/vehicles/[vehicleId]/repair.js
+const { db } = require('../../../_lib/firebaseAdmin');
+const { verifyAuth } = require('../../../_lib/verifyAuth');
+
+module.exports = async (req, res) => {
+  if (req.method !== 'PATCH') return res.status(405).json({ message: 'Method not allowed' });
+
+  const { vehicleId } = req.query;
+  const user = await verifyAuth(req, res);
+  if (!user) return;
+
+  try {
+    const ref = db.collection('vehicles').doc(vehicleId);
+    const snap = await ref.get();
+    if (!snap.exists) return res.status(404).json({ message: 'Vehicle not found' });
+
+    const data = snap.data();
+    if (data.status !== 'repair') return res.status(400).json({ message: 'Cannot change status, vehicle is not in repair.' });
+
+    await ref.update({ status: 'available' });
+
+    // Remove malfunctions
+    const m = await db.collection('malfunctions').where('vehicleId', '==', vehicleId).get();
+    if (!m.empty) {
+      const batch = db.batch();
+      m.forEach(doc => batch.delete(doc.ref));
+      await batch.commit();
+    }
+
+    res.status(200).json({ message: `Vehicle ${vehicleId} status updated to "available" and malfunction(s) deleted.` });
+  } catch (e) {
+    console.error('repair error:', e);
+    res.status(500).json({ message: 'Error updating vehicle status', error: e.message });
+  }
+};
+--- CONTENT END ---
+=== FILE END ===
+
+=== FILE START ===
+Path: api\vehicle\vehicles\[vehicleId]\report-issue.js
+--- CONTENT START ---
+// api/vehicle/vehicles/[vehicleId]/report-issue.js
+const { db } = require('../../../_lib/firebaseAdmin');
+const { verifyAuth } = require('../../../_lib/verifyAuth');
+
+module.exports = async (req, res) => {
+  if (req.method !== 'POST') return res.status(405).json({ message: 'Method not allowed' });
+
+  const { vehicleId } = req.query;
+  const user = await verifyAuth(req, res);
+  if (!user) return;
+
+  const { description } = req.body || {};
+  if (!description) return res.status(400).json({ message: 'Description is required.' });
+
+  try {
+    const vRef = db.collection('vehicles').doc(vehicleId);
+    const vDoc = await vRef.get();
+    if (!vDoc.exists) return res.status(404).json({ message: 'Vehicle not found.' });
+
+    // Log malfunction
+    await db.collection('malfunctions').doc().set({
+      vehicleId,
+      userId: user.uid,
+      description,
+      status: 'Pending',
+      createdAt: new Date()
+    });
+
+    // set vehicle to repair
+    await vRef.update({ status: 'repair' });
+
+    // delete active reservations for this vehicle
+    const rQ = await db.collection('reservation')
+      .where('vehicleId', '==', vehicleId)
+      .where('status', '==', 'Active')
+      .get();
+
+    if (!rQ.empty) {
+      const batch = db.batch();
+      rQ.forEach(doc => batch.delete(doc.ref));
+      await batch.commit();
+    }
+
+    res.status(201).json({ message: `Issue reported for vehicle ${vehicleId}, status updated to "repair", and associated reservation deleted.` });
+  } catch (e) {
+    console.error('report-issue error:', e);
+    res.status(500).json({ message: 'Error reporting vehicle issue.', error: e.message });
+  }
+};
+
+--- CONTENT END ---
+=== FILE END ===
+
+=== FILE START ===
+Path: api\vehicle\vehicles\[vehicleId]\reserve.js
+--- CONTENT START ---
+// api/vehicle/vehicles/[vehicleId]/reserve.js
+const { db } = require('../../../_lib/firebaseAdmin');
+const { verifyAuth } = require('../../../_lib/verifyAuth');
+
+module.exports = async (req, res) => {
+  if (req.method !== 'PATCH') return res.status(405).json({ message: 'Method not allowed' });
+
+  const { vehicleId } = req.query;
+  const user = await verifyAuth(req, res);
+  if (!user) return;
+
+  const { startDate, endDate } = req.body || {};
+  if (!startDate || !endDate) return res.status(400).json({ success: false, message: 'Start date and end date are required.' });
+
+  try {
+    const vRef = db.collection('vehicles').doc(vehicleId);
+    const vDoc = await vRef.get();
+    if (!vDoc.exists) return res.status(404).json({ success: false, message: 'Vehicle not found.' });
+
+    const v = vDoc.data();
+    if (v.status !== 'available') return res.status(400).json({ success: false, message: 'Vehicle is not available for reservation.' });
+
+    const resRef = db.collection('reservation').doc();
+    const reservationId = resRef.id;
+
+    await resRef.set({
+      reservationId,
+      vehicleId,
+      userId: user.uid,
+      startDate,
+      endDate,
+      status: 'Active',
+      createdAt: new Date()
+    });
+
+    await vRef.update({ status: reservationId });
+
+    res.status(201).json({ success: true, message: 'Reservation created successfully.' });
+  } catch (e) {
+    console.error('reserve error:', e);
+    res.status(500).json({ success: false, message: 'Error creating reservation.', error: e.message });
+  }
+};
+--- CONTENT END ---
+=== FILE END ===
+
+=== FILE START ===
+Path: api\vehicle\vehicles\[vehicleId]\unreserve.js
+--- CONTENT START ---
+// api/vehicle/vehicles/[vehicleId]/unreserve.js
+const { db } = require('../../../_lib/firebaseAdmin');
+const { verifyAuth } = require('../../../_lib/verifyAuth');
+
+module.exports = async (req, res) => {
+  if (req.method !== 'PATCH') return res.status(405).json({ message: 'Method not allowed' });
+
+  const { vehicleId } = req.query;
+  const user = await verifyAuth(req, res);
+  if (!user) return;
+
+  try {
+    const ref = db.collection('vehicles').doc(vehicleId);
+    const snap = await ref.get();
+    if (!snap.exists) return res.status(404).json({ message: 'Vehicle not found' });
+
+    const data = snap.data();
+    if (data.status === 'available' || data.status === 'repair') {
+      return res.status(400).json({ message: 'Cannot change status, vehicle is not reserved.' });
+    }
+
+    await ref.update({ status: 'available' });
+    res.status(200).json({ message: `Vehicle ${vehicleId} status updated to "available".` });
+  } catch (e) {
+    console.error('unreserve error:', e);
+    res.status(500).json({ message: 'Error updating vehicle status', error: e.message });
+  }
+};
+--- CONTENT END ---
+=== FILE END ===
+
+=== FILE START ===
+Path: api\vehicle\vehicles\[vehicleId].js
+--- CONTENT START ---
+// api/vehicle/vehicles/[vehicleId].js
+const { db } = require('../../_lib/firebaseAdmin');
+const { verifyAuth } = require('../../_lib/verifyAuth');
+
+module.exports = async (req, res) => {
+  const { vehicleId } = req.query;
+  const method = req.method;
+
+  const user = await verifyAuth(req, res);
+  if (!user) return;
+
+  try {
+    if (method === 'GET') {
+      const ref = db.collection('vehicles').doc(vehicleId);
+      const doc = await ref.get();
+      if (!doc.exists) return res.status(404).json({ message: 'Vehicle not found' });
+      return res.status(200).json({ id: doc.id, ...doc.data() });
+    }
+
+    if (method === 'DELETE') {
+      // Only Admin can delete
+      if (user.role !== 'Admin') return res.status(403).json({ message: 'Only admins can delete vehicles.' });
+
+      const q = await db.collection('vehicles').where('vehicleId', '==', vehicleId).get();
+      if (q.empty) return res.status(404).json({ message: 'No vehicle found with the specified ID' });
+
+      const batch = db.batch();
+      q.forEach(doc => batch.delete(doc.ref));
+      await batch.commit();
+      return res.status(200).json({ message: `Vehicle(s) with id '${vehicleId}' successfully deleted` });
+    }
+
+    return res.status(405).json({ message: 'Method not allowed' });
+  } catch (e) {
+    console.error('vehicle [id] error:', e);
+    res.status(500).json({ message: 'Error handling vehicle', error: e.message });
+  }
+};
+--- CONTENT END ---
+=== FILE END ===
+
+=== FILE START ===
+Path: api\vehicle\vehicles.js
+--- CONTENT START ---
+// api/vehicle/vehicles.js
+const { db } = require('../_lib/firebaseAdmin');
+const { verifyAuth } = require('../_lib/verifyAuth');
+
+module.exports = async (req, res) => {
+  if (req.method !== 'GET') return res.status(405).json({ message: 'Method not allowed' });
+
+  const user = await verifyAuth(req, res);
+  if (!user) return;
+
+  try {
+    const snapshot = await db.collection('vehicles').get();
+    const list = snapshot.docs.map(d => d.data());
+    res.status(200).json(list);
+  } catch (e) {
+    console.error('get vehicles error:', e);
+    res.status(500).json({ message: 'Error fetching vehicles', error: e.message });
+  }
+};
+--- CONTENT END ---
+=== FILE END ===
+
+=== FILE START ===
+Path: api\_lib\cloudinary.js
+--- CONTENT START ---
+// api/_lib/cloudinary.js
 const cloudinary = require('cloudinary').v2;
 
-cloudinary.config({ 
-  cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
-  api_key: process.env.CLOUDINARY_API_KEY,
-  api_secret: process.env.CLOUDINARY_API_SECRET,
+const { CLOUDINARY_CLOUD_NAME, CLOUDINARY_API_KEY, CLOUDINARY_API_SECRET } = process.env;
+
+if (!CLOUDINARY_CLOUD_NAME || !CLOUDINARY_API_KEY || !CLOUDINARY_API_SECRET) {
+  console.warn('Cloudinary environment variables are missing; image upload routes will fail.');
+}
+
+cloudinary.config({
+  cloud_name: CLOUDINARY_CLOUD_NAME,
+  api_key: CLOUDINARY_API_KEY,
+  api_secret: CLOUDINARY_API_SECRET
 });
 
 module.exports = cloudinary;
@@ -21,1072 +499,81 @@ module.exports = cloudinary;
 === FILE END ===
 
 === FILE START ===
-Path: backend\config\firebaseConfig.js
+Path: api\_lib\firebaseAdmin.js
 --- CONTENT START ---
-// config/firebaseConfig.js
-
+// api/_lib/firebaseAdmin.js
 const admin = require('firebase-admin');
 
-// Ensure private key is available
-if (!process.env.FIREBASE_PRIVATE_KEY) {
-  throw new Error('Missing FIREBASE_PRIVATE_KEY in .env file');
-}
-
-// Initialize Firebase Admin SDK
 if (!admin.apps.length) {
+  // All creds must be set as Vercel environment variables
+  const {
+    FIREBASE_PROJECT_ID,
+    FIREBASE_PRIVATE_KEY_ID,
+    FIREBASE_PRIVATE_KEY,
+    FIREBASE_CLIENT_EMAIL,
+    FIREBASE_CLIENT_ID,
+    FIREBASE_AUTH_URI,
+    FIREBASE_TOKEN_URI,
+    FIREBASE_AUTH_PROVIDER_CERT_URL,
+    FIREBASE_CLIENT_CERT_URL
+  } = process.env;
+
+  if (!FIREBASE_PROJECT_ID || !FIREBASE_PRIVATE_KEY || !FIREBASE_CLIENT_EMAIL) {
+    throw new Error('Firebase Admin environment variables are missing');
+  }
+
   admin.initializeApp({
     credential: admin.credential.cert({
-      project_id: process.env.FIREBASE_PROJECT_ID,
-      private_key_id: process.env.FIREBASE_PRIVATE_KEY_ID,
-      private_key: process.env.FIREBASE_PRIVATE_KEY.replace(/\\n/g, '\n'),
-      client_email: process.env.FIREBASE_CLIENT_EMAIL,
-      client_id: process.env.FIREBASE_CLIENT_ID,
-      auth_uri: process.env.FIREBASE_AUTH_URI,
-      token_uri: process.env.FIREBASE_TOKEN_URI,
-      auth_provider_x509_cert_url: process.env.FIREBASE_AUTH_PROVIDER_CERT_URL,
-      client_x509_cert_url: process.env.FIREBASE_CLIENT_CERT_URL,
-    }),
-    databaseURL: `https://${process.env.FIREBASE_PROJECT_ID}.firebaseio.com`,
+      project_id: FIREBASE_PROJECT_ID,
+      private_key_id: FIREBASE_PRIVATE_KEY_ID,
+      private_key: FIREBASE_PRIVATE_KEY.replace(/\\n/g, '\n'),
+      client_email: FIREBASE_CLIENT_EMAIL,
+      client_id: FIREBASE_CLIENT_ID,
+      auth_uri: FIREBASE_AUTH_URI,
+      token_uri: FIREBASE_TOKEN_URI,
+      auth_provider_x509_cert_url: FIREBASE_AUTH_PROVIDER_CERT_URL,
+      client_x509_cert_url: FIREBASE_CLIENT_CERT_URL
+    })
   });
 }
-
-// Debugging Firebase initialization
-console.log('Firebase initialized:', admin.apps.length);
 
 const db = admin.firestore();
 
-module.exports = { db, admin };
+module.exports = { admin, db };
 --- CONTENT END ---
 === FILE END ===
 
 === FILE START ===
-Path: backend\controllers\authController.js
+Path: api\_lib\verifyAuth.js
 --- CONTENT START ---
-// controllers/authController.js
-const { db } = require('../config/firebaseConfig');
-const cloudinary = require('../config/cloudinaryConfig'); // Import configured Cloudinary instance
-const { setUserRole } = require('../services/setUserRole');
+// api/_lib/verifyAuth.js
+const { admin, db } = require('./firebaseAdmin');
 
-async function uploadLicenseImage(req, res) {
-  const { uid } = req.user;
-  const file = req.file;
-
-  console.log('Received UID in uploadLicenseImage:', uid);
-
-  if (!file) {
-    return res.status(400).json({ message: 'No file uploaded or file path missing' });
-  }
-
+async function verifyAuth(req, res) {
   try {
-    const result = await new Promise((resolve, reject) => {
-      const uploadStream = cloudinary.uploader.upload_stream(
-        { folder: `licenses/${uid}` },
-        (error, result) => {
-          if (error) reject(error);
-          else resolve(result);
-        }
-      );
-      uploadStream.end(file.buffer);
-    });
-
-    const imageUrl = result.secure_url;
-
-    const userDocRef = db.collection('users').doc(uid);
-    const userDoc = await userDocRef.get();
-    if (!userDoc.exists) {
-      return res.status(404).json({ message: 'User document not found' });
+    const authHeader = req.headers.authorization || '';
+    const token = authHeader.startsWith('Bearer ') ? authHeader.slice(7) : null;
+    if (!token) {
+      res.status(401).json({ message: 'Authorization token missing' });
+      return null;
     }
+    const decoded = await admin.auth().verifyIdToken(token);
+    const uid = decoded.uid;
 
-    await userDocRef.update({ licenseImageUrl: imageUrl });
-    res.status(200).json({ message: 'License image uploaded successfully', imageUrl });
-  } catch (error) {
-    console.error('Error during image upload:', error);
-    res.status(500).json({ message: 'Image upload failed', error: error.message });
-  }
-}
-
-async function getProfile(req, res) {
-  const { uid } = req.user;
-
-  try {
+    // Fetch Firestore role (default Driver)
+    let role = 'Driver';
     const userDoc = await db.collection('users').doc(uid).get();
-    if (!userDoc.exists) {
-      return res.status(404).json({ message: 'User document not found' });
-    }
-
-    const userData = userDoc.data();
-    res.status(200).json({
-      email: userData.email,
-      role: userData.role || 'Driver',
-      licenseImageUrl: userData.licenseImageUrl || null,
-    });
-  } catch (error) {
-    console.error('Error fetching profile:', error);
-    res.status(500).json({ message: 'Error fetching profile', error: error.message });
-  }
-}
-
-
-
-module.exports = { uploadLicenseImage, getProfile };
---- CONTENT END ---
-=== FILE END ===
-
-=== FILE START ===
-Path: backend\controllers\reimbursementController.js
---- CONTENT START ---
-// controllers/reimbursementController.js
-const { db } = require('../config/firebaseConfig');
-
-async function submitReimbursement(req, res) {
-  const { uid } = req.user;
-  const { cost, description } = req.body;
-  const file = req.file; // Invoice image
-
-  if (!file) {
-    return res.status(400).json({ message: 'Invoice image is required.' });
-  }
-
-  try {
-    // Save image to Cloudinary
-    const result = await new Promise((resolve, reject) => {
-      const uploadStream = cloudinary.uploader.upload_stream(
-        { folder: `reimbursements/${uid}` },
-        (error, result) => {
-          if (error) reject(error);
-          else resolve(result);
-        }
-      );
-      uploadStream.end(file.buffer);
-    });
-
-    const imageUrl = result.secure_url;
-
-    // Create a new reimbursement request
-    await db.collection('reimbursements').add({
-      userId: uid,
-      cost,
-      description,
-      imageUrl,
-      status: 'Pending', // Default status
-      createdAt: new Date(),
-    });
-
-    res.status(201).json({ message: 'Reimbursement request submitted successfully.' });
-  } catch (error) {
-    console.error('Error submitting reimbursement:', error);
-    res.status(500).json({ message: 'Error submitting reimbursement request.', error: error.message });
-  }
-}
-
-async function getPendingReimbursements(req, res) {
-  const { role } = req.user;
-
-  if (role !== 'Manager') {
-    return res.status(403).json({ message: 'Only managers can review reimbursements.' });
-  }
-
-  try {
-    const snapshot = await db.collection('reimbursements').where('status', '==', 'Pending').get();
-    const reimbursements = snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
-
-    res.status(200).json(reimbursements);
-  } catch (error) {
-    console.error('Error fetching reimbursements:', error);
-    res.status(500).json({ message: 'Error fetching reimbursements.', error: error.message });
-  }
-}
-
-async function updateReimbursementStatus(req, res) {
-  const { role } = req.user;
-  const { id, status } = req.body;
-
-  if (role !== 'Manager') {
-    return res.status(403).json({ message: 'Only managers can update reimbursement status.' });
-  }
-
-  if (!['Approved', 'Rejected'].includes(status)) {
-    return res.status(400).json({ message: 'Invalid status update.' });
-  }
-
-  try {
-    const reimbursementRef = db.collection('reimbursements').doc(id);
-    await reimbursementRef.update({ status });
-
-    res.status(200).json({ message: `Reimbursement request ${status}.` });
-  } catch (error) {
-    console.error('Error updating reimbursement status:', error);
-    res.status(500).json({ message: 'Error updating reimbursement status.', error: error.message });
-  }
-}
-
-module.exports = { submitReimbursement, getPendingReimbursements, updateReimbursementStatus };
---- CONTENT END ---
-=== FILE END ===
-
-=== FILE START ===
-Path: backend\controllers\reserveController.js
---- CONTENT START ---
-const { db } = require('../config/firebaseConfig');
-
-async function getReservations(req,res){
-  const { uid } = req.user; // Assuming user is authenticated and uid is available
-
-  console.log('Received UID in getReservations:', uid); // Log UID for debugging
-
-  try{
-    const reservationsSnapshot = await db.collection('reservation').get();
-    const reservationsList = [];
-
-    reservationsSnapshot.forEach((doc)=>{
-      const reservationData = doc.data();
-      reservationsList.push({
-          reservationId: reservationData.reservationId,
-          vehicleId: reservationData.vehicleId,
-          userId: reservationData.userId,
-          startDate: reservationData.startDate,
-          endDate: reservationData.endDate,
-          status: reservationData.status,
-        });
-    });
-    res.status(200).json(reservationsList);
-    //console.log(reservationsList);
-  }catch(error){
-    console.error('Error fetching reservations: ', error);
-    res.status(500).json({ message: 'Error fetching reservations', error: error.message });
-  }
-}
-
-async function getReservation(req,res){
-    const { uid } = req.user; // Assuming user is authenticated and uid is available
-    console.log('Received UID in getReservation:', uid); // Log UID for debugging
-  
-    const { resId } = req.params;
-  
-    try {
-      const resRef = db.collection('reservation').doc(resId);
-      const doc = await resRef.get();
-  
-      if (!doc.exists) {
-        console.log('reservation not found: ', resId);
-        return res.status(404).json({ message: 'Reservation not found' });
-      }
-  
-      res.status(200).json({ id: doc.id, ...doc.data() });
-    } catch (error) {
-      console.error('Error fetching vehicle:', error);
-      res.status(500).json({ message: 'Error fetching vehicle', error: error.message });
-    }
-  }
-
-async function deleteReservation(req, res) {
-  const { uid } = req.user; // Assuming user is authenticated and uid is available
-  console.log('Received UID in deleteReservation:', uid); // Log UID for debugging
-
-  const { resId } = req.params;
-  console.log('Deleting reservation:', resId); 
-
-  try {
-      // Query the 'vehicles' collection for documents with the specified name
-      const vehiclesSnapshot = await db.collection('reservation')
-          .where('reservationId', '==', resId)
-          .get();
-
-      // Check if any matching vehicles were found
-      if (vehiclesSnapshot.empty) {
-          console.log('Found no reservations with this ID.'); 
-          return res.status(404).json({ message: 'No reservation found with the specified ID' });
-      }
-
-      // Delete each matching document
-      const batch = db.batch();
-      vehiclesSnapshot.forEach((doc) => {
-          batch.delete(doc.ref);
-      });
-      await batch.commit();  // Commit the batch delete operation
-
-      res.status(200).json({ message: `Reservation with id '${resId}' successfully deleted` });
-  } catch (error) {
-      console.error('Error deleting reservation:', error);
-      res.status(500).json({ message: 'Error deleting reservation', error: error.message });
-  }
-}
-
-module.exports = { getReservations, deleteReservation, getReservation };
---- CONTENT END ---
-=== FILE END ===
-
-=== FILE START ===
-Path: backend\controllers\vehicleController.js
---- CONTENT START ---
-const { report } = require('..');
-const { db } = require('../config/firebaseConfig');
-
-async function getVehicles(req,res){
-  const { uid } = req.user; // Assuming user is authenticated and uid is available
-
-  console.log('Received UID in getVehicles:', uid); // Log UID for debugging
-
-  try{
-    const vehiclesSnapshot = await db.collection('vehicles').get();
-    const vehiclesList = [];
-
-    vehiclesSnapshot.forEach((doc)=>{
-      const vehicleData = doc.data();
-      vehiclesList.push({
-          vehicleId: vehicleData.vehicleId,
-          vehicleName: vehicleData.vehicleName,
-          color: vehicleData.color,
-          year: vehicleData.year,
-          image: vehicleData.image,
-          engine: vehicleData.engine,
-          hp: vehicleData.hp,
-          status: vehicleData.status,
-        });
-    });
-    res.status(200).json(vehiclesList);
-  }catch(error){
-    console.error('Error fetching vehicles: ', error);
-    res.status(500).json({ message: 'Error fetching vehicles', error: error.message });
-  }
-}
-
-async function getVehicle(req,res){
-  const { uid } = req.user; // Assuming user is authenticated and uid is available
-  console.log('Received UID in getVehicle:', uid); // Log UID for debugging
-
-  const { vehicleId } = req.params;
-
-  try {
-    const vehicleRef = db.collection('vehicles').doc(vehicleId);
-    const doc = await vehicleRef.get();
-
-    if (!doc.exists) {
-      return res.status(404).json({ message: 'Vehicle not found' });
-    }
-
-    res.status(200).json({ id: doc.id, ...doc.data() });
-  } catch (error) {
-    console.error('Error fetching vehicle:', error);
-    res.status(500).json({ message: 'Error fetching vehicle', error: error.message });
-  }
-}
-
-async function repairVehicle(req, res) {
-  const { uid } = req.user; // Assuming user is authenticated and uid is available
-  console.log('Received UID in repairVehicle:', uid); // Log UID for debugging
-
-  const { vehicleId } = req.params; // Get the vehicle ID from the route
-  console.log('Vehicle ID for repair:', vehicleId); // Log Vehicle ID
-
-  try {
-    // Get the vehicle document from Firestore
-    const vehicleRef = db.collection('vehicles').doc(vehicleId);
-    const docSnapshot = await vehicleRef.get();
-
-    if (!docSnapshot.exists) {
-      console.log('Vehicle not found:', vehicleId);
-      return res.status(404).json({ message: 'Vehicle not found' });
-    }
-
-    // Get the current status of the vehicle
-    const vehicleData = docSnapshot.data();
-    console.log('Current vehicle status:', vehicleData.status); // Log current status
-    let newStatus;
-
-    if (vehicleData.status === 'repair') {
-      newStatus = 'available';
-    } else {
-      console.log('Vehicle is not in repair state, cannot update status.');
-      return res.status(400).json({ message: 'Cannot change status, vehicle is not in repair.' });
-    }
-
-    // Update the status in Firestore
-    await vehicleRef.update({ status: newStatus });
-    console.log(`Vehicle status updated to: ${newStatus}`); // Log new status
-
-    // Delete the malfunction from the database
-    const malfunctionQuery = db.collection('malfunctions').where('vehicleId', '==', vehicleId);
-    const malfunctions = await malfunctionQuery.get();
-    if (!malfunctions.empty) {
-      const batch = db.batch();
-      malfunctions.forEach((doc) => {
-        console.log('Deleting malfunction:', doc.id); // Log malfunction ID
-        batch.delete(doc.ref);
-      });
-      await batch.commit();
-      console.log('Malfunction(s) deleted successfully');
-    } else {
-      console.log('No malfunctions found for the vehicle.');
-    }
-
-    res.status(200).json({ message: `Vehicle ${vehicleId} status updated to "${newStatus}" and malfunction(s) deleted.` });
-  } catch (error) {
-    console.error('Error updating vehicle status:', error);
-    res.status(500).json({ message: 'Error updating vehicle status', error: error.message });
-  }
-}
-
-
-
-async function unreserveVehicle(req,res){
-  const { uid } = req.user; // Assuming user is authenticated and uid is available
-  console.log('Received UID in unreserveVehicle:', uid); // Log UID for debugging
-
-  const { vehicleId } = req.params;  // Get the vehicle ID from the route
-  
-  try {
-    // Get the vehicle document from Firestore
-    const vehicleRef = db.collection('vehicles').doc(vehicleId);
-    const docSnapshot = await vehicleRef.get();
-
-    // Check if the vehicle exists
-    if (!docSnapshot.exists) {
-      return res.status(404).json({ message: 'Vehicle not found' });
-    }
-
-    // Get the current status of the vehicle
-    const vehicleData = docSnapshot.data();
-    let newStatus;
-
-    // Toggle the status based on current value
-    if (vehicleData.status != 'available' && vehicleData.status != 'repair') {
-      newStatus = 'available';
-    } else {
-      // If status is anything else, do nothing
-      return res.status(400).json({ message: 'Cannot change status, vehicle is not reserved.' });
-    }
-
-    // Update the status in Firestore
-    await vehicleRef.update({ status: newStatus });
-    
-    res.status(200).json({ message: `Vehicle ${vehicleId} status updated to "${newStatus}".` });
-  } catch (error) {
-    console.error('Error updating vehicle status:', error);
-    res.status(500).json({ message: 'Error updating vehicle status', error: error.message });
-  }
-}
-
-async function reserveVehicle(req, res) {
-  console.log('[reserveVehicle] Received request to reserve vehicle.');
-  const { uid } = req.user;
-  const { vehicleId } = req.params;
-  const { startDate, endDate } = req.body; // Get from body
-
-  console.log('[reserveVehicle] UID:', uid);
-  console.log('[reserveVehicle] Vehicle ID:', vehicleId);
-  console.log('[reserveVehicle] Start Date:', startDate, 'End Date:', endDate);
-
-  if (!startDate || !endDate) {
-    console.error('[reserveVehicle] Missing startDate or endDate.');
-    return res.status(400).json({ success: false, message: 'Start date and end date are required.' });
-  }
-
-  try {
-    const vehicleRef = db.collection('vehicles').doc(vehicleId);
-    const vehicleDoc = await vehicleRef.get();
-
-    if (!vehicleDoc.exists) {
-      return res.status(404).json({ success: false, message: 'Vehicle not found.' });
-    }
-
-    const vehicleData = vehicleDoc.data();
-
-    if (vehicleData.status !== 'available') {
-      return res.status(400).json({ success: false, message: 'Vehicle is not available for reservation.' });
-    }
-
-    const reservationRef = db.collection('reservation').doc();
-    const reservationId = reservationRef.id;
-
-    await reservationRef.set({
-      reservationId,
-      vehicleId,
-      userId: uid,
-      startDate,
-      endDate,
-      status: 'Active',
-      createdAt: new Date(),
-    });
-
-    await vehicleRef.update({ status: reservationId });
-
-    console.log(`[reserveVehicle] Vehicle ${vehicleId} status updated to reservation ID: ${reservationId}`);
-    res.status(201).json({ success: true, message: 'Reservation created successfully.' });
-  } catch (error) {
-    console.error('[reserveVehicle] Error during reservation process:', error);
-    res.status(500).json({ success: false, message: 'Error creating reservation.', error: error.message });
-  }
-}
-
-
-
-
-
-
-
-async function deleteVehicle(req, res) {
-  const { uid } = req.user; // Assuming user is authenticated and uid is available
-  console.log('Received UID in deleteVehicle:', uid); // Log UID for debugging
-
-  const { vehicleId } = req.params;
-  console.log('Deleting vehicle:', vehicleId); 
-
-  try {
-      // Query the 'vehicles' collection for documents with the specified name
-      const vehiclesSnapshot = await db.collection('vehicles')
-          .where('vehicleId', '==', vehicleId)
-          .get();
-
-      // Check if any matching vehicles were found
-      if (vehiclesSnapshot.empty) {
-          console.log('Found no vehicles with this ID.'); 
-          return res.status(404).json({ message: 'No vehicle found with the specified ID' });
-      }
-
-      // Delete each matching document
-      const batch = db.batch();
-      vehiclesSnapshot.forEach((doc) => {
-          batch.delete(doc.ref);
-      });
-      await batch.commit();  // Commit the batch delete operation
-
-      res.status(200).json({ message: `Vehicle(s) with id '${vehicleId}' successfully deleted` });
-  } catch (error) {
-      console.error('Error deleting vehicle:', error);
-      res.status(500).json({ message: 'Error deleting vehicle', error: error.message });
-  }
-}
-
-async function getVehicleReservations(req, res) {
-  const { role } = req.user;
-
-  if (role !== 'Admin') {
-    return res.status(403).json({ message: 'Only admins can view reservations.' });
-  }
-
-  try {
-    const snapshot = await db.collection('reservation').get();
-    const reservations = snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
-
-    res.status(200).json(reservations);
-  } catch (error) {
-    console.error('Error fetching reservations:', error);
-    res.status(500).json({ message: 'Error fetching reservations.', error: error.message });
-  }
-}
-
-async function reportMalfunction(req, res) {
-  const { uid } = req.user;
-  const { vehicleId, description } = req.body;
-
-  try {
-    await db.collection('malfunctions').add({
-      userId: uid,
-      vehicleId,
-      description,
-      status: 'Pending',
-      createdAt: new Date(),
-    });
-
-    // Example: Sending a notification (placeholder, replace with FCM logic)
-    console.log(`Notification sent to Admin: Malfunction reported for vehicle ${vehicleId}.`);
-
-    res.status(201).json({ message: 'Malfunction reported successfully.' });
-  } catch (error) {
-    console.error('Error reporting malfunction:', error);
-    res.status(500).json({ message: 'Error reporting malfunction.', error: error.message });
-  }
-}
-
-async function getAdminReservations(req, res) {
-  const { role } = req.user;
-
-  if (role !== 'Admin') {
-    console.error('[getAdminReservations] Unauthorized access.');
-    return res.status(403).json({ message: 'Unauthorized access. Only admins can view reservations.' });
-  }
-
-  try {
-    console.log('[getAdminReservations] Fetching all reservations.');
-
-    const reservationsSnapshot = await db.collection('reservation').get();
-    const reservations = [];
-
-    for (const doc of reservationsSnapshot.docs) {
-      const reservationData = doc.data();
-      console.log(`[getAdminReservations] Processing reservation: ${reservationData.reservationId}`);
-
-      // Fetch associated vehicle
-      let vehicleData = null;
-      if (reservationData.vehicleId) {
-        const vehicleSnapshot = await db.collection('vehicles').doc(reservationData.vehicleId).get();
-        vehicleData = vehicleSnapshot.exists ? vehicleSnapshot.data() : null;
-      }
-
-      // Fetch associated user
-      let userData = null;
-      if (reservationData.userId) {
-        const userSnapshot = await db.collection('users').doc(reservationData.userId).get();
-        userData = userSnapshot.exists ? userSnapshot.data() : null;
-      }
-
-      reservations.push({
-        reservationId: reservationData.reservationId,
-        startDate: reservationData.startDate,
-        endDate: reservationData.endDate,
-        status: reservationData.status,
-        user: userData
-          ? {
-              email: userData.email || 'N/A',
-              licenseImageUrl: userData.licenseImageUrl || null,
-            }
-          : { email: 'N/A', licenseImageUrl: null },
-        vehicle: vehicleData
-          ? {
-              vehicleName: vehicleData.vehicleName || 'N/A',
-              color: vehicleData.color || 'N/A',
-              engine: vehicleData.engine || 'N/A',
-            }
-          : { vehicleName: 'N/A', color: 'N/A', engine: 'N/A' },
-      });
-    }
-
-    console.log('[getAdminReservations] Completed processing reservations.');
-    res.status(200).json({ success: true, data: reservations });
-  } catch (error) {
-    console.error('[getAdminReservations] Error fetching reservations:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Error fetching reservations.',
-      error: error.message,
-    });
-  }
-}
-
-async function reportVehicleIssue(req, res) {
-  console.log('Received request to report issue:', req.body); // Log request body
-  console.log('Authenticated user:', req.user); // Log authenticated user
-
-  const { uid } = req.user; // Authenticated user's UID
-  const { vehicleId } = req.params; // Vehicle ID from route parameters
-  const { description } = req.body; // Issue description from request body
-
-  if (!description) {
-    console.log('Description is missing in the request.');
-    return res.status(400).json({ message: 'Description is required.' });
-  }
-
-  try {
-    // Log vehicle ID and description for debugging
-    console.log('Vehicle ID:', vehicleId);
-    console.log('Description:', description);
-
-    // Get the vehicle document from Firestore
-    const vehicleRef = db.collection('vehicles').doc(vehicleId);
-    const vehicleDoc = await vehicleRef.get();
-
-    if (!vehicleDoc.exists) {
-      console.log('Vehicle not found:', vehicleId);
-      return res.status(404).json({ message: 'Vehicle not found.' });
-    }
-
-    const vehicleData = vehicleDoc.data();
-    console.log('Vehicle data:', vehicleData);
-
-    // Add the issue to the "malfunctions" collection
-    const malfunctionRef = db.collection('malfunctions').doc();
-    await malfunctionRef.set({
-      vehicleId,
-      userId: uid,
-      description,
-      status: 'Pending', // Default status
-      createdAt: new Date(),
-    });
-
-    console.log('Malfunction logged successfully'); // Confirm malfunction logged
-
-    // Update the vehicle's status to "repair"
-    await vehicleRef.update({ status: 'repair' });
-    console.log('Vehicle status updated to "repair"'); // Confirm status update
-
-    // Delete the associated reservation
-    const reservationQuery = db
-      .collection('reservation')
-      .where('vehicleId', '==', vehicleId)
-      .where('status', '==', 'Active'); // Ensure only active reservations are deleted
-    const reservations = await reservationQuery.get();
-
-    if (!reservations.empty) {
-      const batch = db.batch();
-      reservations.forEach((doc) => {
-        console.log('Deleting reservation:', doc.id); // Log reservation ID
-        batch.delete(doc.ref);
-      });
-      await batch.commit();
-      console.log('Associated reservation(s) deleted successfully');
-    } else {
-      console.log('No active reservations found for this vehicle.');
-    }
-
-    res.status(201).json({
-      message: `Issue reported for vehicle ${vehicleId}, status updated to "repair", and associated reservation deleted.`,
-    });
-  } catch (error) {
-    console.error('Error reporting vehicle issue:', error);
-    res.status(500).json({
-      message: 'Error reporting vehicle issue.',
-      error: error.message,
-    });
-  }
-}
-
-
-async function getMalfunctionData(req, res) {
-  try {
-    console.log('Fetching all malfunctions...');
-    const snapshot = await db.collection('malfunctions').get();
-
-    if (snapshot.empty) {
-      console.log('No malfunctions found.');
-      return res.status(200).json([]);
-    }
-
-    const malfunctions = snapshot.docs.map((doc) => {
-      console.log('Malfunction data:', doc.id, doc.data()); // Log each malfunction
-      return { id: doc.id, ...doc.data() };
-    });
-
-    res.status(200).json(malfunctions);
-  } catch (error) {
-    console.error('Error fetching malfunction data:', error);
-    res.status(500).json({ message: 'Error fetching malfunction data.', error: error.message });
-  }
-}
-
-
-module.exports = { getVehicles, repairVehicle, deleteVehicle, getVehicle, reserveVehicle, getVehicleReservations, 
-  reportMalfunction, getAdminReservations, unreserveVehicle, reportVehicleIssue, getMalfunctionData };
---- CONTENT END ---
-=== FILE END ===
-
-=== FILE START ===
-Path: backend\Dockerfil.txt
---- CONTENT START ---
-# Use the official Node.js image as the base image
-FROM node:18
-
-# Set the working directory inside the container
-WORKDIR /app
-
-# Copy package.json and package-lock.json to the working directory
-COPY package*.json ./
-
-# Install dependencies
-RUN npm ci
-
-# Copy the rest of the backend code to the working directory
-COPY . .
-
-# Expose the port that your backend server listens on
-EXPOSE 3000
-
-# Start the backend server
-CMD ["npm", "start"]
---- CONTENT END ---
-=== FILE END ===
-
-=== FILE START ===
-Path: backend\index.js
---- CONTENT START ---
-require('dotenv').config({ path: require('path').resolve(__dirname, '../.env') });
-const express = require('express');
-const cors = require('cors');
-const authRoutes = require('./routes/authRoutes');
-const vehicleRoutes = require('./routes/vehicleRoutes');
-const reservationRoutes = require('./routes/reservationRoutes');
-const reimbursementRoutes = require('./routes/reimbursementRoutes');
-
-const app = express();
-
-const allowedOrigins = [
-    'http://localhost:3000',
-    'https://company-vehicle-management.web.app',
-    'https://company-vehicle-management.firebaseapp.com'
-];
-
-app.use(cors({
-    origin: function (origin, callback) {
-      // Allow requests with no origin (like mobile apps or curl requests)
-      if (!origin) return callback(null, true);
-      if (allowedOrigins.indexOf(origin) === -1) {
-        const msg = 'The CORS policy for this site does not allow access from the specified Origin.';
-        return callback(new Error(msg), false);
-      }
-      return callback(null, true);
-    },
-    credentials: true,
-}));
-app.use(express.json()); // Parse incoming JSON data
-
-// Add a health check routee
-app.get('/api/health', (req, res) => {
-    res.status(200).json({
-        status: 'ok',
-        message: 'API is running',
-        timestamp: new Date().toISOString(),
-    });
-});
-
-app.use('/api/auth', authRoutes);
-app.use('/api/vehicle', vehicleRoutes);
-app.use('/api/reservation', reservationRoutes);
-app.use('/api/reimbursements', reimbursementRoutes);
-
-module.exports = app; // Export app for testingg
---- CONTENT END ---
-=== FILE END ===
-
-=== FILE START ===
-Path: backend\jest.config.js
---- CONTENT START ---
-module.exports = {
-  testEnvironment: 'node',
-  testMatch: ['**/tests/**/*.test.js'], // Looks for test files in the tests folder
-  moduleDirectories: ['node_modules'], // Default Jest behavior
-};
---- CONTENT END ---
-=== FILE END ===
-
-=== FILE START ===
-Path: backend\middlewares\authMiddleware.js
---- CONTENT START ---
-const { admin, db } = require('../config/firebaseConfig');
-
-const verifyAuthToken = async (req, res, next) => {
-  // Bypass token verification in test environment
-  if (process.env.NODE_ENV === 'test') {
-    req.user = {
-      uid: 'mock-user-id',
-      role: 'Admin', // Mock role
-    };
-    return next();
-  }
-
-  const token = req.headers.authorization?.split(' ')[1];
-
-  if (!token) {
-    return res.status(401).json({ message: 'Authorization token missing' });
-  }
-
-  try {
-    const decodedToken = await admin.auth().verifyIdToken(token);
-    req.user = decodedToken;
-
-    // Fetch role directly from Firestore
-    const userDoc = await db.collection('users').doc(decodedToken.uid).get();
-    if (userDoc.exists) {
-      req.user.role = userDoc.data().role || 'Driver'; // Default to Driver
-    } else {
-      req.user.role = 'Driver';
-    }
-
-    next();
-  } catch (error) {
-    console.error('Token verification error:', error);
+    if (userDoc.exists) role = userDoc.data().role || 'Driver';
+
+    return { uid, role, decoded };
+  } catch (e) {
+    console.error('Auth verify error:', e);
     res.status(403).json({ message: 'Unauthorized access' });
-  }
-};
-
-module.exports = verifyAuthToken;
---- CONTENT END ---
-=== FILE END ===
-
-=== FILE START ===
-Path: backend\middlewares\uploadMiddleware.js
---- CONTENT START ---
-// middlewares/uploadMiddleware.js
-const multer = require('multer');
-
-// Use memory storage to avoid saving files locally
-const storage = multer.memoryStorage();
-const upload = multer({ storage });
-
-module.exports = upload;
---- CONTENT END ---
-=== FILE END ===
-
-=== FILE START ===
-Path: backend\package.json
---- CONTENT START ---
-{
-  "name": "backend",
-  "version": "1.0.0",
-  "main": "index.js",
-  "scripts": {
-    "start": "npx nodemon server.js",
-    "test": "jest",
-    "build": "echo 'No build step for backend'"
-  },
-  "keywords": [],
-  "author": "",
-  "license": "ISC",
-  "description": "",
-  "dependencies": {
-    "@google-cloud/storage": "^7.14.0",
-    "cloudinary": "^2.5.1",
-    "cors": "^2.8.5",
-    "dotenv": "^16.4.5",
-    "express": "^4.21.1",
-    "firebase-admin": "^12.7.0",
-    "multer": "^1.4.5-lts.1"
-  },
-  "devDependencies": {
-    "jest": "^29.7.0",
-    "supertest": "^7.0.0"
-  }
-}
---- CONTENT END ---
-=== FILE END ===
-
-=== FILE START ===
-Path: backend\routes\authRoutes.js
---- CONTENT START ---
-// routes/authRoutes.js
-const express = require('express');
-const { uploadLicenseImage, getProfile } = require('../controllers/authController');
-const verifyAuthToken = require('../middlewares/authMiddleware');
-const uploadMiddleware = require('../middlewares/uploadMiddleware');
-
-const router = express.Router();
-
-router.post('/upload-license', verifyAuthToken, uploadMiddleware.single('licenseImage'), uploadLicenseImage);
-router.get('/profile', verifyAuthToken, getProfile);
-
-module.exports = router;
---- CONTENT END ---
-=== FILE END ===
-
-=== FILE START ===
-Path: backend\routes\reimbursementRoutes.js
---- CONTENT START ---
-const express = require('express');
-const {
-  submitReimbursement,
-  getPendingReimbursements,
-  updateReimbursementStatus,
-} = require('../controllers/reimbursementController');
-const verifyAuthToken = require('../middlewares/authMiddleware');
-const uploadMiddleware = require('../middlewares/uploadMiddleware');
-
-const router = express.Router();
-
-router.post('/submit', verifyAuthToken, uploadMiddleware.single('invoiceImage'), submitReimbursement);
-router.get('/pending', verifyAuthToken, getPendingReimbursements);
-router.patch('/update-status', verifyAuthToken, updateReimbursementStatus);
-
-module.exports = router;
---- CONTENT END ---
-=== FILE END ===
-
-=== FILE START ===
-Path: backend\routes\reservationRoutes.js
---- CONTENT START ---
-const express = require('express');
-const verifyAuthToken = require('../middlewares/authMiddleware');
-const { getReservations, deleteReservation, getReservation } = require('../controllers/reserveController');
-
-const router = express.Router();
-
-// Route to get all reservations
-router.get('/reservation', verifyAuthToken, getReservations);
-
-// Route to get one reservation
-router.get('/reservation/:resId', verifyAuthToken, getReservation);
-
-// Route to delete a reservation by name
-router.delete('/reservation/:resId', verifyAuthToken, deleteReservation);
-
-module.exports = router;
---- CONTENT END ---
-=== FILE END ===
-
-=== FILE START ===
-Path: backend\routes\vehicleRoutes.js
---- CONTENT START ---
-const express = require('express');
-const verifyAuthToken = require('../middlewares/authMiddleware');
-const { getVehicles, repairVehicle, deleteVehicle, getVehicle, reserveVehicle, getVehicleReservations 
-    ,reportMalfunction, getAdminReservations , unreserveVehicle, reportVehicleIssue, getMalfunctionData
- } = require('../controllers/vehicleController');
-
-const router = express.Router();
-
-// Route to get all vehicles
-router.get('/vehicles', verifyAuthToken, getVehicles);
-
-// Route to get one vehicle
-router.get('/vehicles/:vehicleId', verifyAuthToken, getVehicle);
-
-// Route to repair a vehicle
-router.patch('/vehicles/:vehicleId/repair', verifyAuthToken, repairVehicle);
-
-// Route to remove reservation of vehicle
-router.patch('/vehicles/:vehicleId/unreserve', verifyAuthToken, unreserveVehicle);
-
-// Route to reserve a vehicle
-router.patch('/vehicles/:vehicleId/reserve', verifyAuthToken, reserveVehicle);
-
-// Route to delete a vehicle by name
-router.delete('/vehicles/:vehicleId', verifyAuthToken, deleteVehicle);
-
-router.get('/reservations', verifyAuthToken, getVehicleReservations);
-
-router.post('/report-malfunction', verifyAuthToken, reportMalfunction);
-
-router.get('/admin-reservations', verifyAuthToken, getAdminReservations);
-
-router.post('/vehicles/:vehicleId/report-issue', verifyAuthToken, reportVehicleIssue);
-
-router.get('/malfunctions', verifyAuthToken, getMalfunctionData);
-
-
-module.exports = router;
---- CONTENT END ---
-=== FILE END ===
-
-=== FILE START ===
-Path: backend\server.js
---- CONTENT START ---
-const app = require('./index'); // Import the Express app
-const PORT = process.env.PORT || 5000;
-
-// Only start the server if not in test environment
-if (process.env.NODE_ENV !== 'test') {
-  app.listen(PORT, () => {
-    console.log(`Server is running on port ${PORT}`);
-  });
-}
-
-module.exports = app; // Export app for testing
---- CONTENT END ---
-=== FILE END ===
-
-=== FILE START ===
-Path: backend\services\setUserRole.js
---- CONTENT START ---
-const admin = require('firebase-admin');
-
-async function setUserRole(uid, role) {
-  try {
-    await admin.auth().setCustomUserClaims(uid, { role });
-    console.log(`Role '${role}' assigned to user ${uid}`);
-  } catch (error) {
-    console.error('Error setting custom claims:', error);
+    return null;
   }
 }
 
-module.exports = { setUserRole };
+module.exports = { verifyAuth };
 --- CONTENT END ---
 === FILE END ===
 
@@ -2682,25 +2169,9 @@ export default ViewRes;
 === FILE START ===
 Path: frontend\src\config.js
 --- CONTENT START ---
-const checkApiAvailability = async (url) => {
-  try {
-    const response = await fetch(`${url}/health`, { method: 'GET' }); // Assuming your API has a health check endpoint
-    return response.ok;
-  } catch (error) {
-    return false;
-  }
-};
-
-const getApiUrl = async () => {
-  const primaryApi = 'https://rirssolo.onrender.com/api';
-  const fallbackApi = 'http://localhost:5000/api';
-
-  const isPrimaryAvailable = await checkApiAvailability(primaryApi);
-  return isPrimaryAvailable ? primaryApi : fallbackApi;
-};
-
+// Point the frontend to Vercel serverless API under the same domain
 const config = {
-  getApiUrl,
+  getApiUrl: async () => '/api'
 };
 
 export default config;
@@ -2764,10 +2235,11 @@ code {
 Path: frontend\src\index.js
 --- CONTENT START ---
 import React from 'react';
-import ReactDOM from 'react-dom';
+import { createRoot } from 'react-dom/client';
 import App from './App';
 
-ReactDOM.render(<App />, document.getElementById('root'));
+const container = document.getElementById('root');
+createRoot(container).render(<App />);
 --- CONTENT END ---
 === FILE END ===
 
@@ -3122,32 +2594,6 @@ Path: .firebaserc
 === FILE END ===
 
 === FILE START ===
-Path: Dockerfile.dockerhub
---- CONTENT START ---
-# Use the official Node.js image as the base image
-FROM node:18
-
-# Set the working directory inside the containerrr
-WORKDIR /app
-
-# Copy package.json and package-lock.json to the working directory
-COPY backend/package*.json ./
-
-# Install dependencies
-RUN npm ci
-
-# Copy the rest of the backend code to the working directory
-COPY backend/ ./
-
-# Expose the port that your backend server listens on
-EXPOSE 10000
-
-# Start the backend server
-CMD ["npm", "start"]
---- CONTENT END ---
-=== FILE END ===
-
-=== FILE START ===
 Path: firebase.json
 --- CONTENT START ---
 {
@@ -3221,21 +2667,19 @@ Path: package-lock.json
 === FILE END ===
 
 === FILE START ===
-Path: sonar-project.properties
+Path: vercel.json
 --- CONTENT START ---
-# Global Configuration
-sonar.projectKey=PajovicVanja_RIRSsolo
-sonar.organization=pajovicvanja
-sonar.host.url=https://sonarcloud.io
-
-# Backend Configuration
-sonar.sources=backend,frontend
-sonar.exclusions=**/node_modules/**, **/dist/**
-
-# Test Coverage for Backend (Express/Node)
-sonar.javascript.lcov.reportPaths=backend/coverage/lcov.info
-
-# Test Coverage for Frontend (React)
-sonar.typescript.lcov.reportPaths=frontend/coverage/lcov.info
+{
+  "version": 2,
+  "builds": [
+    { "src": "frontend/package.json", "use": "@vercel/static-build", "config": { "distDir": "build" } },
+    { "src": "api/**/*.js", "use": "@vercel/node" }
+  ],
+  "routes": [
+    { "src": "/api/(.*)", "dest": "/api/$1" },
+    { "handle": "filesystem" },
+    { "src": "/(.*)", "dest": "/index.html" }
+  ]
+}
 --- CONTENT END ---
 === FILE END ===

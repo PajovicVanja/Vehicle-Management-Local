@@ -10,7 +10,7 @@ const PROJECT_ROOT = process.cwd();
 const OUTPUT_FILE = path.join(PROJECT_ROOT, 'output.txt');
 
 // Directories to walk
-const TARGET_DIRS = ['backend', 'frontend'];
+const TARGET_DIRS = ['api', 'frontend'];
 
 // Safety directory ignores (by basename). Adjust if needed.
 const DIR_BASENAME_IGNORES = new Set([
@@ -55,7 +55,7 @@ const ROOT_OPTIONAL_FILES = [
   'firestore.rules',
   'firestore.indexes.json',
   'package-lock.json',
-  'sonar-project.properties',
+  'vercel.json',
 ];
 
 // Utility: normalize to forward slashes, lowercase
