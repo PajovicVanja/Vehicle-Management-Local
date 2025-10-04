@@ -1,0 +1,12 @@
+{
+  "name": "rirs-mono",
+  "private": true,
+  "workspaces": [
+    "frontend"
+  ],
+  "dependencies": {
+    "cloudinary": "^2.5.1",
+    "firebase-admin": "^12.7.0",
+    "formidable": "^3.5.1"
+  }
+}

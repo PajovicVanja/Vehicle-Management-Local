@@ -1,22 +1,6 @@
-const checkApiAvailability = async (url) => {
-  try {
-    const response = await fetch(`${url}/health`, { method: 'GET' }); // Assuming your API has a health check endpoint
-    return response.ok;
-  } catch (error) {
-    return false;
-  }
-};
-
-const getApiUrl = async () => {
-  const primaryApi = 'https://rirssolo.onrender.com/api';
-  const fallbackApi = 'http://localhost:5000/api';
-
-  const isPrimaryAvailable = await checkApiAvailability(primaryApi);
-  return isPrimaryAvailable ? primaryApi : fallbackApi;
-};
-
+// Point the frontend to Vercel serverless API under the same domain
 const config = {
-  getApiUrl,
+  getApiUrl: async () => '/api'
 };
 
 export default config;

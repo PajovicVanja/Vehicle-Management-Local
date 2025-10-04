@@ -1,0 +1,3241 @@
+Output generated at: 2025-10-04T08:42:28.491Z
+Project root: C:\aaFERI\PREDMETI\3. Semestar\VUI\App\RIRSsolo
+
+====================
+DUMP FROM DIRECTORIES
+====================
+
+=== FILE START ===
+Path: backend\config\cloudinaryConfig.js
+--- CONTENT START ---
+const cloudinary = require('cloudinary').v2;
+
+cloudinary.config({ 
+  cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
+  api_key: process.env.CLOUDINARY_API_KEY,
+  api_secret: process.env.CLOUDINARY_API_SECRET,
+});
+
+module.exports = cloudinary;
+--- CONTENT END ---
+=== FILE END ===
+
+=== FILE START ===
+Path: backend\config\firebaseConfig.js
+--- CONTENT START ---
+// config/firebaseConfig.js
+
+const admin = require('firebase-admin');
+
+// Ensure private key is available
+if (!process.env.FIREBASE_PRIVATE_KEY) {
+  throw new Error('Missing FIREBASE_PRIVATE_KEY in .env file');
+}
+
+// Initialize Firebase Admin SDK
+if (!admin.apps.length) {
+  admin.initializeApp({
+    credential: admin.credential.cert({
+      project_id: process.env.FIREBASE_PROJECT_ID,
+      private_key_id: process.env.FIREBASE_PRIVATE_KEY_ID,
+      private_key: process.env.FIREBASE_PRIVATE_KEY.replace(/\\n/g, '\n'),
+      client_email: process.env.FIREBASE_CLIENT_EMAIL,
+      client_id: process.env.FIREBASE_CLIENT_ID,
+      auth_uri: process.env.FIREBASE_AUTH_URI,
+      token_uri: process.env.FIREBASE_TOKEN_URI,
+      auth_provider_x509_cert_url: process.env.FIREBASE_AUTH_PROVIDER_CERT_URL,
+      client_x509_cert_url: process.env.FIREBASE_CLIENT_CERT_URL,
+    }),
+    databaseURL: `https://${process.env.FIREBASE_PROJECT_ID}.firebaseio.com`,
+  });
+}
+
+// Debugging Firebase initialization
+console.log('Firebase initialized:', admin.apps.length);
+
+const db = admin.firestore();
+
+module.exports = { db, admin };
+--- CONTENT END ---
+=== FILE END ===
+
+=== FILE START ===
+Path: backend\controllers\authController.js
+--- CONTENT START ---
+// controllers/authController.js
+const { db } = require('../config/firebaseConfig');
+const cloudinary = require('../config/cloudinaryConfig'); // Import configured Cloudinary instance
+const { setUserRole } = require('../services/setUserRole');
+
+async function uploadLicenseImage(req, res) {
+  const { uid } = req.user;
+  const file = req.file;
+
+  console.log('Received UID in uploadLicenseImage:', uid);
+
+  if (!file) {
+    return res.status(400).json({ message: 'No file uploaded or file path missing' });
+  }
+
+  try {
+    const result = await new Promise((resolve, reject) => {
+      const uploadStream = cloudinary.uploader.upload_stream(
+        { folder: `licenses/${uid}` },
+        (error, result) => {
+          if (error) reject(error);
+          else resolve(result);
+        }
+      );
+      uploadStream.end(file.buffer);
+    });
+
+    const imageUrl = result.secure_url;
+
+    const userDocRef = db.collection('users').doc(uid);
+    const userDoc = await userDocRef.get();
+    if (!userDoc.exists) {
+      return res.status(404).json({ message: 'User document not found' });
+    }
+
+    await userDocRef.update({ licenseImageUrl: imageUrl });
+    res.status(200).json({ message: 'License image uploaded successfully', imageUrl });
+  } catch (error) {
+    console.error('Error during image upload:', error);
+    res.status(500).json({ message: 'Image upload failed', error: error.message });
+  }
+}
+
+async function getProfile(req, res) {
+  const { uid } = req.user;
+
+  try {
+    const userDoc = await db.collection('users').doc(uid).get();
+    if (!userDoc.exists) {
+      return res.status(404).json({ message: 'User document not found' });
+    }
+
+    const userData = userDoc.data();
+    res.status(200).json({
+      email: userData.email,
+      role: userData.role || 'Driver',
+      licenseImageUrl: userData.licenseImageUrl || null,
+    });
+  } catch (error) {
+    console.error('Error fetching profile:', error);
+    res.status(500).json({ message: 'Error fetching profile', error: error.message });
+  }
+}
+
+
+
+module.exports = { uploadLicenseImage, getProfile };
+--- CONTENT END ---
+=== FILE END ===
+
+=== FILE START ===
+Path: backend\controllers\reimbursementController.js
+--- CONTENT START ---
+// controllers/reimbursementController.js
+const { db } = require('../config/firebaseConfig');
+
+async function submitReimbursement(req, res) {
+  const { uid } = req.user;
+  const { cost, description } = req.body;
+  const file = req.file; // Invoice image
+
+  if (!file) {
+    return res.status(400).json({ message: 'Invoice image is required.' });
+  }
+
+  try {
+    // Save image to Cloudinary
+    const result = await new Promise((resolve, reject) => {
+      const uploadStream = cloudinary.uploader.upload_stream(
+        { folder: `reimbursements/${uid}` },
+        (error, result) => {
+          if (error) reject(error);
+          else resolve(result);
+        }
+      );
+      uploadStream.end(file.buffer);
+    });
+
+    const imageUrl = result.secure_url;
+
+    // Create a new reimbursement request
+    await db.collection('reimbursements').add({
+      userId: uid,
+      cost,
+      description,
+      imageUrl,
+      status: 'Pending', // Default status
+      createdAt: new Date(),
+    });
+
+    res.status(201).json({ message: 'Reimbursement request submitted successfully.' });
+  } catch (error) {
+    console.error('Error submitting reimbursement:', error);
+    res.status(500).json({ message: 'Error submitting reimbursement request.', error: error.message });
+  }
+}
+
+async function getPendingReimbursements(req, res) {
+  const { role } = req.user;
+
+  if (role !== 'Manager') {
+    return res.status(403).json({ message: 'Only managers can review reimbursements.' });
+  }
+
+  try {
+    const snapshot = await db.collection('reimbursements').where('status', '==', 'Pending').get();
+    const reimbursements = snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
+
+    res.status(200).json(reimbursements);
+  } catch (error) {
+    console.error('Error fetching reimbursements:', error);
+    res.status(500).json({ message: 'Error fetching reimbursements.', error: error.message });
+  }
+}
+
+async function updateReimbursementStatus(req, res) {
+  const { role } = req.user;
+  const { id, status } = req.body;
+
+  if (role !== 'Manager') {
+    return res.status(403).json({ message: 'Only managers can update reimbursement status.' });
+  }
+
+  if (!['Approved', 'Rejected'].includes(status)) {
+    return res.status(400).json({ message: 'Invalid status update.' });
+  }
+
+  try {
+    const reimbursementRef = db.collection('reimbursements').doc(id);
+    await reimbursementRef.update({ status });
+
+    res.status(200).json({ message: `Reimbursement request ${status}.` });
+  } catch (error) {
+    console.error('Error updating reimbursement status:', error);
+    res.status(500).json({ message: 'Error updating reimbursement status.', error: error.message });
+  }
+}
+
+module.exports = { submitReimbursement, getPendingReimbursements, updateReimbursementStatus };
+--- CONTENT END ---
+=== FILE END ===
+
+=== FILE START ===
+Path: backend\controllers\reserveController.js
+--- CONTENT START ---
+const { db } = require('../config/firebaseConfig');
+
+async function getReservations(req,res){
+  const { uid } = req.user; // Assuming user is authenticated and uid is available
+
+  console.log('Received UID in getReservations:', uid); // Log UID for debugging
+
+  try{
+    const reservationsSnapshot = await db.collection('reservation').get();
+    const reservationsList = [];
+
+    reservationsSnapshot.forEach((doc)=>{
+      const reservationData = doc.data();
+      reservationsList.push({
+          reservationId: reservationData.reservationId,
+          vehicleId: reservationData.vehicleId,
+          userId: reservationData.userId,
+          startDate: reservationData.startDate,
+          endDate: reservationData.endDate,
+          status: reservationData.status,
+        });
+    });
+    res.status(200).json(reservationsList);
+    //console.log(reservationsList);
+  }catch(error){
+    console.error('Error fetching reservations: ', error);
+    res.status(500).json({ message: 'Error fetching reservations', error: error.message });
+  }
+}
+
+async function getReservation(req,res){
+    const { uid } = req.user; // Assuming user is authenticated and uid is available
+    console.log('Received UID in getReservation:', uid); // Log UID for debugging
+  
+    const { resId } = req.params;
+  
+    try {
+      const resRef = db.collection('reservation').doc(resId);
+      const doc = await resRef.get();
+  
+      if (!doc.exists) {
+        console.log('reservation not found: ', resId);
+        return res.status(404).json({ message: 'Reservation not found' });
+      }
+  
+      res.status(200).json({ id: doc.id, ...doc.data() });
+    } catch (error) {
+      console.error('Error fetching vehicle:', error);
+      res.status(500).json({ message: 'Error fetching vehicle', error: error.message });
+    }
+  }
+
+async function deleteReservation(req, res) {
+  const { uid } = req.user; // Assuming user is authenticated and uid is available
+  console.log('Received UID in deleteReservation:', uid); // Log UID for debugging
+
+  const { resId } = req.params;
+  console.log('Deleting reservation:', resId); 
+
+  try {
+      // Query the 'vehicles' collection for documents with the specified name
+      const vehiclesSnapshot = await db.collection('reservation')
+          .where('reservationId', '==', resId)
+          .get();
+
+      // Check if any matching vehicles were found
+      if (vehiclesSnapshot.empty) {
+          console.log('Found no reservations with this ID.'); 
+          return res.status(404).json({ message: 'No reservation found with the specified ID' });
+      }
+
+      // Delete each matching document
+      const batch = db.batch();
+      vehiclesSnapshot.forEach((doc) => {
+          batch.delete(doc.ref);
+      });
+      await batch.commit();  // Commit the batch delete operation
+
+      res.status(200).json({ message: `Reservation with id '${resId}' successfully deleted` });
+  } catch (error) {
+      console.error('Error deleting reservation:', error);
+      res.status(500).json({ message: 'Error deleting reservation', error: error.message });
+  }
+}
+
+module.exports = { getReservations, deleteReservation, getReservation };
+--- CONTENT END ---
+=== FILE END ===
+
+=== FILE START ===
+Path: backend\controllers\vehicleController.js
+--- CONTENT START ---
+const { report } = require('..');
+const { db } = require('../config/firebaseConfig');
+
+async function getVehicles(req,res){
+  const { uid } = req.user; // Assuming user is authenticated and uid is available
+
+  console.log('Received UID in getVehicles:', uid); // Log UID for debugging
+
+  try{
+    const vehiclesSnapshot = await db.collection('vehicles').get();
+    const vehiclesList = [];
+
+    vehiclesSnapshot.forEach((doc)=>{
+      const vehicleData = doc.data();
+      vehiclesList.push({
+          vehicleId: vehicleData.vehicleId,
+          vehicleName: vehicleData.vehicleName,
+          color: vehicleData.color,
+          year: vehicleData.year,
+          image: vehicleData.image,
+          engine: vehicleData.engine,
+          hp: vehicleData.hp,
+          status: vehicleData.status,
+        });
+    });
+    res.status(200).json(vehiclesList);
+  }catch(error){
+    console.error('Error fetching vehicles: ', error);
+    res.status(500).json({ message: 'Error fetching vehicles', error: error.message });
+  }
+}
+
+async function getVehicle(req,res){
+  const { uid } = req.user; // Assuming user is authenticated and uid is available
+  console.log('Received UID in getVehicle:', uid); // Log UID for debugging
+
+  const { vehicleId } = req.params;
+
+  try {
+    const vehicleRef = db.collection('vehicles').doc(vehicleId);
+    const doc = await vehicleRef.get();
+
+    if (!doc.exists) {
+      return res.status(404).json({ message: 'Vehicle not found' });
+    }
+
+    res.status(200).json({ id: doc.id, ...doc.data() });
+  } catch (error) {
+    console.error('Error fetching vehicle:', error);
+    res.status(500).json({ message: 'Error fetching vehicle', error: error.message });
+  }
+}
+
+async function repairVehicle(req, res) {
+  const { uid } = req.user; // Assuming user is authenticated and uid is available
+  console.log('Received UID in repairVehicle:', uid); // Log UID for debugging
+
+  const { vehicleId } = req.params; // Get the vehicle ID from the route
+  console.log('Vehicle ID for repair:', vehicleId); // Log Vehicle ID
+
+  try {
+    // Get the vehicle document from Firestore
+    const vehicleRef = db.collection('vehicles').doc(vehicleId);
+    const docSnapshot = await vehicleRef.get();
+
+    if (!docSnapshot.exists) {
+      console.log('Vehicle not found:', vehicleId);
+      return res.status(404).json({ message: 'Vehicle not found' });
+    }
+
+    // Get the current status of the vehicle
+    const vehicleData = docSnapshot.data();
+    console.log('Current vehicle status:', vehicleData.status); // Log current status
+    let newStatus;
+
+    if (vehicleData.status === 'repair') {
+      newStatus = 'available';
+    } else {
+      console.log('Vehicle is not in repair state, cannot update status.');
+      return res.status(400).json({ message: 'Cannot change status, vehicle is not in repair.' });
+    }
+
+    // Update the status in Firestore
+    await vehicleRef.update({ status: newStatus });
+    console.log(`Vehicle status updated to: ${newStatus}`); // Log new status
+
+    // Delete the malfunction from the database
+    const malfunctionQuery = db.collection('malfunctions').where('vehicleId', '==', vehicleId);
+    const malfunctions = await malfunctionQuery.get();
+    if (!malfunctions.empty) {
+      const batch = db.batch();
+      malfunctions.forEach((doc) => {
+        console.log('Deleting malfunction:', doc.id); // Log malfunction ID
+        batch.delete(doc.ref);
+      });
+      await batch.commit();
+      console.log('Malfunction(s) deleted successfully');
+    } else {
+      console.log('No malfunctions found for the vehicle.');
+    }
+
+    res.status(200).json({ message: `Vehicle ${vehicleId} status updated to "${newStatus}" and malfunction(s) deleted.` });
+  } catch (error) {
+    console.error('Error updating vehicle status:', error);
+    res.status(500).json({ message: 'Error updating vehicle status', error: error.message });
+  }
+}
+
+
+
+async function unreserveVehicle(req,res){
+  const { uid } = req.user; // Assuming user is authenticated and uid is available
+  console.log('Received UID in unreserveVehicle:', uid); // Log UID for debugging
+
+  const { vehicleId } = req.params;  // Get the vehicle ID from the route
+  
+  try {
+    // Get the vehicle document from Firestore
+    const vehicleRef = db.collection('vehicles').doc(vehicleId);
+    const docSnapshot = await vehicleRef.get();
+
+    // Check if the vehicle exists
+    if (!docSnapshot.exists) {
+      return res.status(404).json({ message: 'Vehicle not found' });
+    }
+
+    // Get the current status of the vehicle
+    const vehicleData = docSnapshot.data();
+    let newStatus;
+
+    // Toggle the status based on current value
+    if (vehicleData.status != 'available' && vehicleData.status != 'repair') {
+      newStatus = 'available';
+    } else {
+      // If status is anything else, do nothing
+      return res.status(400).json({ message: 'Cannot change status, vehicle is not reserved.' });
+    }
+
+    // Update the status in Firestore
+    await vehicleRef.update({ status: newStatus });
+    
+    res.status(200).json({ message: `Vehicle ${vehicleId} status updated to "${newStatus}".` });
+  } catch (error) {
+    console.error('Error updating vehicle status:', error);
+    res.status(500).json({ message: 'Error updating vehicle status', error: error.message });
+  }
+}
+
+async function reserveVehicle(req, res) {
+  console.log('[reserveVehicle] Received request to reserve vehicle.');
+  const { uid } = req.user;
+  const { vehicleId } = req.params;
+  const { startDate, endDate } = req.body; // Get from body
+
+  console.log('[reserveVehicle] UID:', uid);
+  console.log('[reserveVehicle] Vehicle ID:', vehicleId);
+  console.log('[reserveVehicle] Start Date:', startDate, 'End Date:', endDate);
+
+  if (!startDate || !endDate) {
+    console.error('[reserveVehicle] Missing startDate or endDate.');
+    return res.status(400).json({ success: false, message: 'Start date and end date are required.' });
+  }
+
+  try {
+    const vehicleRef = db.collection('vehicles').doc(vehicleId);
+    const vehicleDoc = await vehicleRef.get();
+
+    if (!vehicleDoc.exists) {
+      return res.status(404).json({ success: false, message: 'Vehicle not found.' });
+    }
+
+    const vehicleData = vehicleDoc.data();
+
+    if (vehicleData.status !== 'available') {
+      return res.status(400).json({ success: false, message: 'Vehicle is not available for reservation.' });
+    }
+
+    const reservationRef = db.collection('reservation').doc();
+    const reservationId = reservationRef.id;
+
+    await reservationRef.set({
+      reservationId,
+      vehicleId,
+      userId: uid,
+      startDate,
+      endDate,
+      status: 'Active',
+      createdAt: new Date(),
+    });
+
+    await vehicleRef.update({ status: reservationId });
+
+    console.log(`[reserveVehicle] Vehicle ${vehicleId} status updated to reservation ID: ${reservationId}`);
+    res.status(201).json({ success: true, message: 'Reservation created successfully.' });
+  } catch (error) {
+    console.error('[reserveVehicle] Error during reservation process:', error);
+    res.status(500).json({ success: false, message: 'Error creating reservation.', error: error.message });
+  }
+}
+
+
+
+
+
+
+
+async function deleteVehicle(req, res) {
+  const { uid } = req.user; // Assuming user is authenticated and uid is available
+  console.log('Received UID in deleteVehicle:', uid); // Log UID for debugging
+
+  const { vehicleId } = req.params;
+  console.log('Deleting vehicle:', vehicleId); 
+
+  try {
+      // Query the 'vehicles' collection for documents with the specified name
+      const vehiclesSnapshot = await db.collection('vehicles')
+          .where('vehicleId', '==', vehicleId)
+          .get();
+
+      // Check if any matching vehicles were found
+      if (vehiclesSnapshot.empty) {
+          console.log('Found no vehicles with this ID.'); 
+          return res.status(404).json({ message: 'No vehicle found with the specified ID' });
+      }
+
+      // Delete each matching document
+      const batch = db.batch();
+      vehiclesSnapshot.forEach((doc) => {
+          batch.delete(doc.ref);
+      });
+      await batch.commit();  // Commit the batch delete operation
+
+      res.status(200).json({ message: `Vehicle(s) with id '${vehicleId}' successfully deleted` });
+  } catch (error) {
+      console.error('Error deleting vehicle:', error);
+      res.status(500).json({ message: 'Error deleting vehicle', error: error.message });
+  }
+}
+
+async function getVehicleReservations(req, res) {
+  const { role } = req.user;
+
+  if (role !== 'Admin') {
+    return res.status(403).json({ message: 'Only admins can view reservations.' });
+  }
+
+  try {
+    const snapshot = await db.collection('reservation').get();
+    const reservations = snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
+
+    res.status(200).json(reservations);
+  } catch (error) {
+    console.error('Error fetching reservations:', error);
+    res.status(500).json({ message: 'Error fetching reservations.', error: error.message });
+  }
+}
+
+async function reportMalfunction(req, res) {
+  const { uid } = req.user;
+  const { vehicleId, description } = req.body;
+
+  try {
+    await db.collection('malfunctions').add({
+      userId: uid,
+      vehicleId,
+      description,
+      status: 'Pending',
+      createdAt: new Date(),
+    });
+
+    // Example: Sending a notification (placeholder, replace with FCM logic)
+    console.log(`Notification sent to Admin: Malfunction reported for vehicle ${vehicleId}.`);
+
+    res.status(201).json({ message: 'Malfunction reported successfully.' });
+  } catch (error) {
+    console.error('Error reporting malfunction:', error);
+    res.status(500).json({ message: 'Error reporting malfunction.', error: error.message });
+  }
+}
+
+async function getAdminReservations(req, res) {
+  const { role } = req.user;
+
+  if (role !== 'Admin') {
+    console.error('[getAdminReservations] Unauthorized access.');
+    return res.status(403).json({ message: 'Unauthorized access. Only admins can view reservations.' });
+  }
+
+  try {
+    console.log('[getAdminReservations] Fetching all reservations.');
+
+    const reservationsSnapshot = await db.collection('reservation').get();
+    const reservations = [];
+
+    for (const doc of reservationsSnapshot.docs) {
+      const reservationData = doc.data();
+      console.log(`[getAdminReservations] Processing reservation: ${reservationData.reservationId}`);
+
+      // Fetch associated vehicle
+      let vehicleData = null;
+      if (reservationData.vehicleId) {
+        const vehicleSnapshot = await db.collection('vehicles').doc(reservationData.vehicleId).get();
+        vehicleData = vehicleSnapshot.exists ? vehicleSnapshot.data() : null;
+      }
+
+      // Fetch associated user
+      let userData = null;
+      if (reservationData.userId) {
+        const userSnapshot = await db.collection('users').doc(reservationData.userId).get();
+        userData = userSnapshot.exists ? userSnapshot.data() : null;
+      }
+
+      reservations.push({
+        reservationId: reservationData.reservationId,
+        startDate: reservationData.startDate,
+        endDate: reservationData.endDate,
+        status: reservationData.status,
+        user: userData
+          ? {
+              email: userData.email || 'N/A',
+              licenseImageUrl: userData.licenseImageUrl || null,
+            }
+          : { email: 'N/A', licenseImageUrl: null },
+        vehicle: vehicleData
+          ? {
+              vehicleName: vehicleData.vehicleName || 'N/A',
+              color: vehicleData.color || 'N/A',
+              engine: vehicleData.engine || 'N/A',
+            }
+          : { vehicleName: 'N/A', color: 'N/A', engine: 'N/A' },
+      });
+    }
+
+    console.log('[getAdminReservations] Completed processing reservations.');
+    res.status(200).json({ success: true, data: reservations });
+  } catch (error) {
+    console.error('[getAdminReservations] Error fetching reservations:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error fetching reservations.',
+      error: error.message,
+    });
+  }
+}
+
+async function reportVehicleIssue(req, res) {
+  console.log('Received request to report issue:', req.body); // Log request body
+  console.log('Authenticated user:', req.user); // Log authenticated user
+
+  const { uid } = req.user; // Authenticated user's UID
+  const { vehicleId } = req.params; // Vehicle ID from route parameters
+  const { description } = req.body; // Issue description from request body
+
+  if (!description) {
+    console.log('Description is missing in the request.');
+    return res.status(400).json({ message: 'Description is required.' });
+  }
+
+  try {
+    // Log vehicle ID and description for debugging
+    console.log('Vehicle ID:', vehicleId);
+    console.log('Description:', description);
+
+    // Get the vehicle document from Firestore
+    const vehicleRef = db.collection('vehicles').doc(vehicleId);
+    const vehicleDoc = await vehicleRef.get();
+
+    if (!vehicleDoc.exists) {
+      console.log('Vehicle not found:', vehicleId);
+      return res.status(404).json({ message: 'Vehicle not found.' });
+    }
+
+    const vehicleData = vehicleDoc.data();
+    console.log('Vehicle data:', vehicleData);
+
+    // Add the issue to the "malfunctions" collection
+    const malfunctionRef = db.collection('malfunctions').doc();
+    await malfunctionRef.set({
+      vehicleId,
+      userId: uid,
+      description,
+      status: 'Pending', // Default status
+      createdAt: new Date(),
+    });
+
+    console.log('Malfunction logged successfully'); // Confirm malfunction logged
+
+    // Update the vehicle's status to "repair"
+    await vehicleRef.update({ status: 'repair' });
+    console.log('Vehicle status updated to "repair"'); // Confirm status update
+
+    // Delete the associated reservation
+    const reservationQuery = db
+      .collection('reservation')
+      .where('vehicleId', '==', vehicleId)
+      .where('status', '==', 'Active'); // Ensure only active reservations are deleted
+    const reservations = await reservationQuery.get();
+
+    if (!reservations.empty) {
+      const batch = db.batch();
+      reservations.forEach((doc) => {
+        console.log('Deleting reservation:', doc.id); // Log reservation ID
+        batch.delete(doc.ref);
+      });
+      await batch.commit();
+      console.log('Associated reservation(s) deleted successfully');
+    } else {
+      console.log('No active reservations found for this vehicle.');
+    }
+
+    res.status(201).json({
+      message: `Issue reported for vehicle ${vehicleId}, status updated to "repair", and associated reservation deleted.`,
+    });
+  } catch (error) {
+    console.error('Error reporting vehicle issue:', error);
+    res.status(500).json({
+      message: 'Error reporting vehicle issue.',
+      error: error.message,
+    });
+  }
+}
+
+
+async function getMalfunctionData(req, res) {
+  try {
+    console.log('Fetching all malfunctions...');
+    const snapshot = await db.collection('malfunctions').get();
+
+    if (snapshot.empty) {
+      console.log('No malfunctions found.');
+      return res.status(200).json([]);
+    }
+
+    const malfunctions = snapshot.docs.map((doc) => {
+      console.log('Malfunction data:', doc.id, doc.data()); // Log each malfunction
+      return { id: doc.id, ...doc.data() };
+    });
+
+    res.status(200).json(malfunctions);
+  } catch (error) {
+    console.error('Error fetching malfunction data:', error);
+    res.status(500).json({ message: 'Error fetching malfunction data.', error: error.message });
+  }
+}
+
+
+module.exports = { getVehicles, repairVehicle, deleteVehicle, getVehicle, reserveVehicle, getVehicleReservations, 
+  reportMalfunction, getAdminReservations, unreserveVehicle, reportVehicleIssue, getMalfunctionData };
+--- CONTENT END ---
+=== FILE END ===
+
+=== FILE START ===
+Path: backend\Dockerfil.txt
+--- CONTENT START ---
+# Use the official Node.js image as the base image
+FROM node:18
+
+# Set the working directory inside the container
+WORKDIR /app
+
+# Copy package.json and package-lock.json to the working directory
+COPY package*.json ./
+
+# Install dependencies
+RUN npm ci
+
+# Copy the rest of the backend code to the working directory
+COPY . .
+
+# Expose the port that your backend server listens on
+EXPOSE 3000
+
+# Start the backend server
+CMD ["npm", "start"]
+--- CONTENT END ---
+=== FILE END ===
+
+=== FILE START ===
+Path: backend\index.js
+--- CONTENT START ---
+require('dotenv').config({ path: require('path').resolve(__dirname, '../.env') });
+const express = require('express');
+const cors = require('cors');
+const authRoutes = require('./routes/authRoutes');
+const vehicleRoutes = require('./routes/vehicleRoutes');
+const reservationRoutes = require('./routes/reservationRoutes');
+const reimbursementRoutes = require('./routes/reimbursementRoutes');
+
+const app = express();
+
+const allowedOrigins = [
+    'http://localhost:3000',
+    'https://company-vehicle-management.web.app',
+    'https://company-vehicle-management.firebaseapp.com'
+];
+
+app.use(cors({
+    origin: function (origin, callback) {
+      // Allow requests with no origin (like mobile apps or curl requests)
+      if (!origin) return callback(null, true);
+      if (allowedOrigins.indexOf(origin) === -1) {
+        const msg = 'The CORS policy for this site does not allow access from the specified Origin.';
+        return callback(new Error(msg), false);
+      }
+      return callback(null, true);
+    },
+    credentials: true,
+}));
+app.use(express.json()); // Parse incoming JSON data
+
+// Add a health check routee
+app.get('/api/health', (req, res) => {
+    res.status(200).json({
+        status: 'ok',
+        message: 'API is running',
+        timestamp: new Date().toISOString(),
+    });
+});
+
+app.use('/api/auth', authRoutes);
+app.use('/api/vehicle', vehicleRoutes);
+app.use('/api/reservation', reservationRoutes);
+app.use('/api/reimbursements', reimbursementRoutes);
+
+module.exports = app; // Export app for testingg
+--- CONTENT END ---
+=== FILE END ===
+
+=== FILE START ===
+Path: backend\jest.config.js
+--- CONTENT START ---
+module.exports = {
+  testEnvironment: 'node',
+  testMatch: ['**/tests/**/*.test.js'], // Looks for test files in the tests folder
+  moduleDirectories: ['node_modules'], // Default Jest behavior
+};
+--- CONTENT END ---
+=== FILE END ===
+
+=== FILE START ===
+Path: backend\middlewares\authMiddleware.js
+--- CONTENT START ---
+const { admin, db } = require('../config/firebaseConfig');
+
+const verifyAuthToken = async (req, res, next) => {
+  // Bypass token verification in test environment
+  if (process.env.NODE_ENV === 'test') {
+    req.user = {
+      uid: 'mock-user-id',
+      role: 'Admin', // Mock role
+    };
+    return next();
+  }
+
+  const token = req.headers.authorization?.split(' ')[1];
+
+  if (!token) {
+    return res.status(401).json({ message: 'Authorization token missing' });
+  }
+
+  try {
+    const decodedToken = await admin.auth().verifyIdToken(token);
+    req.user = decodedToken;
+
+    // Fetch role directly from Firestore
+    const userDoc = await db.collection('users').doc(decodedToken.uid).get();
+    if (userDoc.exists) {
+      req.user.role = userDoc.data().role || 'Driver'; // Default to Driver
+    } else {
+      req.user.role = 'Driver';
+    }
+
+    next();
+  } catch (error) {
+    console.error('Token verification error:', error);
+    res.status(403).json({ message: 'Unauthorized access' });
+  }
+};
+
+module.exports = verifyAuthToken;
+--- CONTENT END ---
+=== FILE END ===
+
+=== FILE START ===
+Path: backend\middlewares\uploadMiddleware.js
+--- CONTENT START ---
+// middlewares/uploadMiddleware.js
+const multer = require('multer');
+
+// Use memory storage to avoid saving files locally
+const storage = multer.memoryStorage();
+const upload = multer({ storage });
+
+module.exports = upload;
+--- CONTENT END ---
+=== FILE END ===
+
+=== FILE START ===
+Path: backend\package.json
+--- CONTENT START ---
+{
+  "name": "backend",
+  "version": "1.0.0",
+  "main": "index.js",
+  "scripts": {
+    "start": "npx nodemon server.js",
+    "test": "jest",
+    "build": "echo 'No build step for backend'"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "description": "",
+  "dependencies": {
+    "@google-cloud/storage": "^7.14.0",
+    "cloudinary": "^2.5.1",
+    "cors": "^2.8.5",
+    "dotenv": "^16.4.5",
+    "express": "^4.21.1",
+    "firebase-admin": "^12.7.0",
+    "multer": "^1.4.5-lts.1"
+  },
+  "devDependencies": {
+    "jest": "^29.7.0",
+    "supertest": "^7.0.0"
+  }
+}
+--- CONTENT END ---
+=== FILE END ===
+
+=== FILE START ===
+Path: backend\routes\authRoutes.js
+--- CONTENT START ---
+// routes/authRoutes.js
+const express = require('express');
+const { uploadLicenseImage, getProfile } = require('../controllers/authController');
+const verifyAuthToken = require('../middlewares/authMiddleware');
+const uploadMiddleware = require('../middlewares/uploadMiddleware');
+
+const router = express.Router();
+
+router.post('/upload-license', verifyAuthToken, uploadMiddleware.single('licenseImage'), uploadLicenseImage);
+router.get('/profile', verifyAuthToken, getProfile);
+
+module.exports = router;
+--- CONTENT END ---
+=== FILE END ===
+
+=== FILE START ===
+Path: backend\routes\reimbursementRoutes.js
+--- CONTENT START ---
+const express = require('express');
+const {
+  submitReimbursement,
+  getPendingReimbursements,
+  updateReimbursementStatus,
+} = require('../controllers/reimbursementController');
+const verifyAuthToken = require('../middlewares/authMiddleware');
+const uploadMiddleware = require('../middlewares/uploadMiddleware');
+
+const router = express.Router();
+
+router.post('/submit', verifyAuthToken, uploadMiddleware.single('invoiceImage'), submitReimbursement);
+router.get('/pending', verifyAuthToken, getPendingReimbursements);
+router.patch('/update-status', verifyAuthToken, updateReimbursementStatus);
+
+module.exports = router;
+--- CONTENT END ---
+=== FILE END ===
+
+=== FILE START ===
+Path: backend\routes\reservationRoutes.js
+--- CONTENT START ---
+const express = require('express');
+const verifyAuthToken = require('../middlewares/authMiddleware');
+const { getReservations, deleteReservation, getReservation } = require('../controllers/reserveController');
+
+const router = express.Router();
+
+// Route to get all reservations
+router.get('/reservation', verifyAuthToken, getReservations);
+
+// Route to get one reservation
+router.get('/reservation/:resId', verifyAuthToken, getReservation);
+
+// Route to delete a reservation by name
+router.delete('/reservation/:resId', verifyAuthToken, deleteReservation);
+
+module.exports = router;
+--- CONTENT END ---
+=== FILE END ===
+
+=== FILE START ===
+Path: backend\routes\vehicleRoutes.js
+--- CONTENT START ---
+const express = require('express');
+const verifyAuthToken = require('../middlewares/authMiddleware');
+const { getVehicles, repairVehicle, deleteVehicle, getVehicle, reserveVehicle, getVehicleReservations 
+    ,reportMalfunction, getAdminReservations , unreserveVehicle, reportVehicleIssue, getMalfunctionData
+ } = require('../controllers/vehicleController');
+
+const router = express.Router();
+
+// Route to get all vehicles
+router.get('/vehicles', verifyAuthToken, getVehicles);
+
+// Route to get one vehicle
+router.get('/vehicles/:vehicleId', verifyAuthToken, getVehicle);
+
+// Route to repair a vehicle
+router.patch('/vehicles/:vehicleId/repair', verifyAuthToken, repairVehicle);
+
+// Route to remove reservation of vehicle
+router.patch('/vehicles/:vehicleId/unreserve', verifyAuthToken, unreserveVehicle);
+
+// Route to reserve a vehicle
+router.patch('/vehicles/:vehicleId/reserve', verifyAuthToken, reserveVehicle);
+
+// Route to delete a vehicle by name
+router.delete('/vehicles/:vehicleId', verifyAuthToken, deleteVehicle);
+
+router.get('/reservations', verifyAuthToken, getVehicleReservations);
+
+router.post('/report-malfunction', verifyAuthToken, reportMalfunction);
+
+router.get('/admin-reservations', verifyAuthToken, getAdminReservations);
+
+router.post('/vehicles/:vehicleId/report-issue', verifyAuthToken, reportVehicleIssue);
+
+router.get('/malfunctions', verifyAuthToken, getMalfunctionData);
+
+
+module.exports = router;
+--- CONTENT END ---
+=== FILE END ===
+
+=== FILE START ===
+Path: backend\server.js
+--- CONTENT START ---
+const app = require('./index'); // Import the Express app
+const PORT = process.env.PORT || 5000;
+
+// Only start the server if not in test environment
+if (process.env.NODE_ENV !== 'test') {
+  app.listen(PORT, () => {
+    console.log(`Server is running on port ${PORT}`);
+  });
+}
+
+module.exports = app; // Export app for testing
+--- CONTENT END ---
+=== FILE END ===
+
+=== FILE START ===
+Path: backend\services\setUserRole.js
+--- CONTENT START ---
+const admin = require('firebase-admin');
+
+async function setUserRole(uid, role) {
+  try {
+    await admin.auth().setCustomUserClaims(uid, { role });
+    console.log(`Role '${role}' assigned to user ${uid}`);
+  } catch (error) {
+    console.error('Error setting custom claims:', error);
+  }
+}
+
+module.exports = { setUserRole };
+--- CONTENT END ---
+=== FILE END ===
+
+=== FILE START ===
+Path: frontend\package.json
+--- CONTENT START ---
+{
+  "name": "frontend",
+  "version": "0.1.0",
+  "private": true,
+  "dependencies": {
+    "firebase": "^11.0.1",
+    "react": "^18.3.1",
+    "react-calendar": "^5.1.0",
+    "react-date-picker": "^11.0.0",
+    "react-dom": "^18.3.1",
+    "react-scripts": "^5.0.1",
+    "web-vitals": "^2.1.4"
+  },
+  "scripts": {
+    "start": "react-scripts start",
+    "build": "react-scripts build",
+    "test": "react-scripts test --watchAll=false",
+    "eject": "react-scripts eject"
+  },
+  "eslintConfig": {
+    "extends": [
+      "react-app",
+      "react-app/jest"
+    ]
+  },
+  "browserslist": {
+    "production": [
+      ">0.2%",
+      "not dead",
+      "not op_mini all"
+    ],
+    "development": [
+      "last 1 chrome version",
+      "last 1 firefox version",
+      "last 1 safari version"
+    ]
+  },
+  "devDependencies": {
+    "@babel/plugin-proposal-private-property-in-object": "^7.21.11",
+    "@testing-library/jest-dom": "^6.6.3",
+    "@testing-library/react": "^16.0.1",
+    "@testing-library/user-event": "^14.5.2"
+  }
+}
+--- CONTENT END ---
+=== FILE END ===
+
+=== FILE START ===
+Path: frontend\public\index.html
+--- CONTENT START ---
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <link rel="icon" href="%PUBLIC_URL%/favicon.ico" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="theme-color" content="#000000" />
+    <meta
+      name="description"
+      content="Web site created using create-react-app"
+    />
+    <link rel="apple-touch-icon" href="%PUBLIC_URL%/logo192.png" />
+    <!--
+      manifest.json provides metadata used when your web app is installed on a
+      user's mobile device or desktop. See https://developers.google.com/web/fundamentals/web-app-manifest/
+    -->
+    <link rel="manifest" href="%PUBLIC_URL%/manifest.json" />
+    <!--
+      Notice the use of %PUBLIC_URL% in the tags above.
+      It will be replaced with the URL of the `public` folder during the build.
+      Only files inside the `public` folder can be referenced from the HTML.
+
+      Unlike "/favicon.ico" or "favicon.ico", "%PUBLIC_URL%/favicon.ico" will
+      work correctly both with client-side routing and a non-root public URL.
+      Learn how to configure a non-root public URL by running `npm run build`.
+    -->
+    <title>React App</title>
+  </head>
+  <body>
+    <noscript>You need to enable JavaScript to run this app.</noscript>
+    <div id="root"></div>
+    <!--
+      This HTML file is a template.
+      If you open it directly in the browser, you will see an empty page.
+
+      You can add webfonts, meta tags, or analytics to this file.
+      The build step will place the bundled scripts into the <body> tag.
+
+      To begin the development, run `npm start` or `yarn start`.
+      To create a production bundle, use `npm run build` or `yarn build`.
+    -->
+  </body>
+</html>
+--- CONTENT END ---
+=== FILE END ===
+
+=== FILE START ===
+Path: frontend\public\manifest.json
+--- CONTENT START ---
+{
+  "short_name": "React App",
+  "name": "Create React App Sample",
+  "icons": [
+    {
+      "src": "favicon.ico",
+      "sizes": "64x64 32x32 24x24 16x16",
+      "type": "image/x-icon"
+    },
+    {
+      "src": "logo192.png",
+      "type": "image/png",
+      "sizes": "192x192"
+    },
+    {
+      "src": "logo512.png",
+      "type": "image/png",
+      "sizes": "512x512"
+    }
+  ],
+  "start_url": ".",
+  "display": "standalone",
+  "theme_color": "#000000",
+  "background_color": "#ffffff"
+}
+--- CONTENT END ---
+=== FILE END ===
+
+=== FILE START ===
+Path: frontend\public\robots.txt
+--- CONTENT START ---
+# https://www.robotstxt.org/robotstxt.html
+User-agent: *
+Disallow:
+--- CONTENT END ---
+=== FILE END ===
+
+=== FILE START ===
+Path: frontend\src\App.css
+--- CONTENT START ---
+.menu-group{
+  display: flex;
+  flex-direction: column;
+  justify-content: center; /* Centers buttons horizontally */
+  align-items: center; /* Centers buttons vertically */
+}
+
+.button-group {
+    display: flex;
+    justify-content: center; /* Centers buttons horizontally */
+    align-items: center; /* Centers buttons vertically */
+    gap: 10px;
+  }
+--- CONTENT END ---
+=== FILE END ===
+
+=== FILE START ===
+Path: frontend\src\App.js
+--- CONTENT START ---
+import React, { useState, useEffect } from 'react';
+import './App.css';
+import Register from './components/Register';
+import Login from './components/Login';
+import Profile from './components/Profile';
+import ReserveVehicle from './components/ReserveVehicle';
+import AddVehicle from './components/AddVehicle';
+import UploadLicense from './components/UploadLicense';
+import CurrentReservationsAdmin from './components/CurrentReservationsAdmin';
+import ViewReservation from './components/ViewReservation';
+import { getUserData } from './services/authService';
+import { getAuth } from 'firebase/auth'; // Import Firebase Authentication
+
+import { getReservationData } from './services/reservationService';
+
+function App() {
+  const [token, setToken] = useState(null); // Auth token
+  const [role, setRole] = useState(''); // User role (Driver, Admin, Manager)
+  const [licenseUploaded, setLicenseUploaded] = useState(false); // Driver's license status
+
+  // UI Navigation States
+  const [showRegister, setShowRegister] = useState(false);
+  const [showProfile, setShowProfile] = useState(false);
+  const [showReserve, setShowReserve] = useState(false); // Used for viewing vehicles
+  const [showAddVehicle, setShowAddVehicle] = useState(false);
+  const [showAllCarReservations, setShowAllCarReservations] = useState(false);
+
+  //Reservation form
+  const [uid, setUid] = useState(null);
+  const [reservations, setReservations] = useState([]); 
+  const [userReservation, setUserReservation] = useState(null);
+
+  // Fetch role and license status after login
+  useEffect(() => {
+    // Fetch role and license status after login
+    const fetchRole = async () => {
+      if (token) {
+        const userData = await getUserData(token);
+        if (userData.success) {
+          setRole(userData.data.role || 'Driver');
+          setLicenseUploaded(!!userData.data.licenseImageUrl);
+
+          const fetchAllReservations = async () => {
+            try {
+              const vehicleSnapshot = await getReservationData(token);
+              if (vehicleSnapshot.success) {
+                setReservations(vehicleSnapshot.data);
+              }
+            } catch (error) {
+              console.log(error);
+            }
+          };
+
+          fetchAllReservations();
+          // Get the authenticated user's UIDd
+          const auth = getAuth();
+          const user = auth.currentUser;
+          user ? setUid(user.uid) : setUid(null);
+        }
+      }
+    };
+    fetchRole();
+  }, [token]);
+
+  useEffect(() => {
+    // Fetch user reservation only after `reservations` and `uid` have been set
+    if (reservations.length > 0 && uid) {
+      const userRes = reservations.find(res => res.userId === uid);
+      setUserReservation(userRes);
+    }
+  }, [reservations, uid]);
+  
+  return (
+    <div>
+      <h1>Vehicle Management System</h1>
+      {!token ? (
+        <>
+          {/* Register or Login UI */}
+          {showRegister ? (
+            <Register setToken={setToken} />
+          ) : (
+            <Login setToken={setToken} />
+          )}
+          <button
+            className="goto-register-button"
+            onClick={() => setShowRegister(!showRegister)}
+          >
+            {showRegister ? 'Switch to Login' : 'Switch to Register'}
+          </button>
+        </>
+      ) : showAddVehicle ? (
+        <AddVehicle token={token} setShowAddVehicle={setShowAddVehicle} />
+      ) : showReserve ? (
+        <ReserveVehicle
+          token={token}
+          setShowReserve={setShowReserve}
+          setShowAddVehicle={setShowAddVehicle}
+          setShowAllCarReservations={setShowAllCarReservations}
+          canReserve={role === 'Driver'} 
+          userReservationReset={setUserReservation}
+        />
+      ) : showProfile ? (
+        <Profile token={token} setShowProfile={setShowProfile} />
+      ) : showAllCarReservations ? (
+        <CurrentReservationsAdmin
+          token={token}
+          setShowAllCarReservations={setShowAllCarReservations}
+        />
+      ) : (
+        <div className="menu-group">
+          {/* Show UploadLicense for Drivers who haven't uploaded it */}
+          {role === 'Driver' && !licenseUploaded && (
+            <UploadLicense token={token} />
+          )}
+          {/* Show the active reservation, if it exists */}
+          {userReservation ? (
+            <ViewReservation token={token} reservationData={userReservation} />
+          ) : (<></>)}
+          <div className="button-group">
+            <button
+              onClick={() => setShowProfile(true)}
+              className="goto-register-button"
+            >
+              View Profile
+            </button>
+            <button
+              onClick={() => setShowReserve(true)}
+              className="goto-register-button"
+            >
+              {role === 'Driver' ? 'Reserve Vehicle' : 'View Vehicles'}
+            </button>
+            {/* Admin and Manager options */}
+            {(role === 'Admin' || role === 'Manager') && (
+              <button
+                onClick={() => setShowAllCarReservations(true)}
+                className="goto-register-button"
+              >
+                View All Reservations
+              </button>
+            )}
+            <button
+              onClick={() => {
+                // Log out user
+                setToken(null);
+                setRole('');
+                setShowProfile(false);
+                setShowReserve(false);
+                setShowAddVehicle(false);
+                setShowAllCarReservations(false);
+              }}
+              className="goto-register-button"
+            >
+              Log Out
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+export default App;
+--- CONTENT END ---
+=== FILE END ===
+
+=== FILE START ===
+Path: frontend\src\components\AddVehicle.js
+--- CONTENT START ---
+// components/AddVehicle.js
+import React, { useState } from 'react'; // Remove useEffect
+
+import '../CSS/Profile.css';
+import '../CSS/AddVehicle.css';
+import { db, collection, doc, setDoc } from '../firebaseClient'; // Import Firestore
+
+function AddVehicle({ token, setShowAddVehicle }) {
+  const [vehicleName, setVehicleName] = useState('');
+  const [hp, setHp] = useState('');
+  const [engine, setEngine] = useState('');
+  const [color, setColor] = useState('');
+  const [year, setYear] = useState('');
+  // Remove setImage and setError
+
+  const handleAddVehicle = async (e) => {
+    e.preventDefault();
+    // Generate a unique document reference with a new ID
+    const vehicleRef = doc(collection(db, 'vehicles'));
+    const vehicleId = vehicleRef.id;
+    const status = 'available';
+
+    // Create a new vehicle object including the vehicleId
+    const newVehicle = {
+      vehicleId,           // Add the unique ID to the vehicle data
+      vehicleName,
+      engine,
+      hp,
+      color,
+      year,
+      status,
+    };
+
+    try {
+      // Add the document with the custom ID and data
+      await setDoc(vehicleRef, newVehicle);
+      console.log(`Added vehicle ${newVehicle.vehicleName} with ID: ${vehicleId}`);
+    } catch (error) {
+      console.error("Error adding vehicle:", error);
+    }
+
+    setShowAddVehicle(false);
+  };
+
+  return (
+    <div className="add-vehicle-container">
+      <h2>Add vehicle</h2>
+      <form onSubmit={handleAddVehicle}>
+        <input
+          type="vehicleName"
+          placeholder="Vehicle Name"
+          value={vehicleName}
+          onChange={(e) => setVehicleName(e.target.value)}
+          className="add-vehicle-input"
+        />
+        <input
+          type="vehicleColor"
+          placeholder="Vehicle Color"
+          value={color}
+          onChange={(e) => setColor(e.target.value)}
+          className="add-vehicle-input"
+        />
+        <input
+          type="year"
+          placeholder="Vehicle Year"
+          value={year}
+          onChange={(e) => setYear(e.target.value)}
+          className="add-vehicle-input"
+        />
+        <input
+          type="engine"
+          placeholder="Engine"
+          value={engine}
+          onChange={(e) => setEngine(e.target.value)}
+          className="add-vehicle-input"
+        />
+        <input
+          type="hp"
+          placeholder="HP"
+          value={hp}
+          onChange={(e) => setHp(e.target.value)}
+          className="add-vehicle-input"
+        />
+        <button type="submit" className="add-vehicle-button">Add vehicle</button>
+      </form>
+      <button onClick={() => setShowAddVehicle(false)} className='goto-vehicle-select-button'>Back to Vehicle selection</button>
+    </div>
+  );
+}
+
+export default AddVehicle;
+--- CONTENT END ---
+=== FILE END ===
+
+=== FILE START ===
+Path: frontend\src\components\CurrentReservationsAdmin.js
+--- CONTENT START ---
+import React, { useState, useEffect } from 'react';
+import '../CSS/Reservations.css';
+import { getAdminReservations } from '../services/vehicleService';
+
+function CurrentReservationsAdmin({ token, setShowAllCarReservations }) {
+  const [reservations, setReservations] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+
+  useEffect(() => {
+    const fetchReservations = async () => {
+      try {
+        console.log('[CurrentReservationsAdmin] Fetching reservations...');
+        const result = await getAdminReservations(token);
+
+        console.log('[CurrentReservationsAdmin] Raw API Response:', result);
+
+        if (result?.success && Array.isArray(result.data?.data)) {
+          console.log('[CurrentReservationsAdmin] Reservations fetched:', result.data.data);
+          setReservations(result.data.data);
+        } else {
+          console.error('[CurrentReservationsAdmin] Invalid data format:', result);
+          throw new Error('Invalid data format in response.');
+        }
+      } catch (err) {
+        console.error('[CurrentReservationsAdmin] Error:', err.message);
+        setError('Failed to fetch reservations.');
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchReservations();
+  }, [token]);
+
+  if (loading) {
+    return <p>Loading reservations...</p>;
+  }
+
+  if (error) {
+    return <p className="error-message">Error: {error}</p>;
+  }
+
+  if (!reservations.length) {
+    return (
+      <div className="reservations-container">
+        <h2>Current Car Reservations</h2>
+        <p>No reservations found.</p>
+        <button
+          onClick={() => setShowAllCarReservations(false)}
+          className="goto-register-button"
+        >
+          Back to Dashboard
+        </button>
+      </div>
+    );
+  }
+
+  return (
+    <div className="reservations-container">
+      <h2>Current Car Reservations</h2>
+      <table className="reservations-table">
+        <thead>
+          <tr>
+            <th>Reservation ID</th>
+            <th>Vehicle Name</th>
+            <th>Color</th>
+            <th>Engine</th>
+            <th>Start Date</th>
+            <th>End Date</th>
+            <th>User Email</th>
+            <th>License Image</th>
+          </tr>
+        </thead>
+        <tbody>
+          {reservations.map((reservation) => {
+            const vehicle = reservation.vehicle || {};
+            const user = reservation.user || {};
+
+            return (
+              <tr key={reservation.reservationId || Math.random()}>
+                <td>{reservation.reservationId || 'N/A'}</td>
+                <td>{vehicle.vehicleName || 'N/A'}</td>
+                <td>{vehicle.color || 'N/A'}</td>
+                <td>{vehicle.engine || 'N/A'}</td>
+                <td>{reservation.startDate || 'N/A'}</td>
+                <td>{reservation.endDate || 'N/A'}</td>
+                <td>{user.email || 'N/A'}</td>
+                <td>
+                  {user.licenseImageUrl ? (
+                    <img
+                      src={user.licenseImageUrl}
+                      alt="License"
+                      className="license-thumbnail"
+                    />
+                  ) : (
+                    'N/A'
+                  )}
+                </td>
+              </tr>
+            );
+          })}
+        </tbody>
+      </table>
+      <button
+        onClick={() => setShowAllCarReservations(false)}
+        className="goto-register-button"
+      >
+        Back to Dashboard
+      </button>
+    </div>
+  );
+}
+
+export default CurrentReservationsAdmin;
+--- CONTENT END ---
+=== FILE END ===
+
+=== FILE START ===
+Path: frontend\src\components\Login.js
+--- CONTENT START ---
+// components/Login.js
+import React, { useState } from 'react';
+import '../CSS/LoginRegister.css';
+import { auth, signInWithEmailAndPassword } from '../firebaseClient';
+
+function Login({ setToken }) {
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [error, setError] = useState('');
+
+  const handleLogin = async (e) => {
+    e.preventDefault();
+    try {
+      // Log in using Firebase Authentication
+      const userCredential = await signInWithEmailAndPassword(auth, email, password);
+      const user = userCredential.user;
+
+      // Fetch the token and role
+      const token = await user.getIdTokenResult();
+      const role = token.claims.role || 'Driver'; // Default to Driver if no role
+      
+      localStorage.setItem('userRole', role); // Save role locally for role-based UI
+      setToken(token.token); // Set token to be used in the app
+      setError('');
+    } catch (error) {
+      setError(error.message); // Display error message if login fails
+    }
+  };
+
+  return (
+    <div className="login-container">
+      <h2>Login</h2>
+      <form onSubmit={handleLogin}>
+        <input
+          type="email"
+          placeholder="Email"
+          value={email}
+          onChange={(e) => setEmail(e.target.value)}
+          className="login-input"
+        />
+        <input
+          type="password"
+          placeholder="Password"
+          value={password}
+          onChange={(e) => setPassword(e.target.value)}
+          className="login-input"
+        />
+        <button type="submit" className="login-button">Login</button>
+      </form>
+      {error && <p className="error-message">{error}</p>}
+    </div>
+  );
+}
+
+export default Login;
+--- CONTENT END ---
+=== FILE END ===
+
+=== FILE START ===
+Path: frontend\src\components\MalfunctionMessage.js
+--- CONTENT START ---
+import React, { useState, useEffect } from "react";
+import { getMalfunctionData } from "../services/vehicleService";
+
+const MalfunctionMessage = ({ vehicleId, setShowMessage, token }) => {
+  const [message, setMessage] = useState("");
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+
+  useEffect(() => {
+    const fetchMessage = async () => {
+      setLoading(true);
+      try {
+        const result = await getMalfunctionData(token);
+        if (result.success) {
+          const malfunction = result.data.find((m) => m.vehicleId === vehicleId);
+          setMessage(malfunction ? malfunction.description : "No message found.");
+        } else {
+          setError(result.error || "Failed to fetch malfunction message.");
+        }
+      } catch (error) {
+        setError(error.message);
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchMessage();
+  }, [vehicleId, token]);
+
+  return (
+    <div className="malfunction-message">
+      <h2>Malfunction Message</h2>
+      {loading ? (
+        <p>Loading...</p>
+      ) : error ? (
+        <p>Error loading message: {error}</p>
+      ) : (
+        <p>{message}</p>
+      )}
+      <button onClick={() => setShowMessage(null)} className="back-button">
+        Back
+      </button>
+    </div>
+  );
+};
+
+export default MalfunctionMessage;
+--- CONTENT END ---
+=== FILE END ===
+
+=== FILE START ===
+Path: frontend\src\components\Profile.js
+--- CONTENT START ---
+// components/Profile.js
+import React, { useState, useEffect, useCallback } from 'react';
+import '../CSS/Profile.css';
+import { getUserData, uploadLicense } from '../services/authService';
+
+function Profile({ token, setShowProfile }) {
+  const [email, setEmail] = useState('');
+  const [role, setRole] = useState('');
+  const [licenseImageUrl, setLicenseImageUrl] = useState(null);
+  const [message, setMessage] = useState('');
+  const [file, setFile] = useState(null);
+
+  // Function to fetch and update user data
+  const fetchUserData = useCallback(async () => {
+    const result = await getUserData(token);
+    if (result.success) {
+      setEmail(result.data.email);
+      setRole(result.data.role || 'Driver'); // Default role to Driver
+      setLicenseImageUrl(result.data.licenseImageUrl);
+    } else {
+      setMessage(result.error || 'Failed to load profile data');
+    }
+  }, [token]);
+
+  // Initial data fetch
+  useEffect(() => {
+    fetchUserData();
+  }, [token, fetchUserData]);
+
+  const handleFileChange = (e) => {
+    setFile(e.target.files[0]);
+  };
+
+  const handleUpload = async (e) => {
+    e.preventDefault();
+    if (file) {
+      const result = await uploadLicense(file, token);
+      if (result.success) {
+        setMessage('License uploaded successfully');
+        fetchUserData(); // Fetch the updated user data immediately after upload
+      } else {
+        setMessage(result.error || 'Failed to upload license');
+      }
+    } else {
+      setMessage('Please select a file to upload');
+    }
+  };
+
+  return (
+    <div className="profile-container">
+      <h2>Profile</h2>
+      <p className="profile-email">Email: {email}</p>
+      <p className="profile-role">Role: {role}</p>
+      {licenseImageUrl ? (
+        <div>
+          <h3>Your Driver’s License</h3>
+          <img src={licenseImageUrl} alt="Driver's License" className="license-image" />
+        </div>
+      ) : (
+        <p className="no-license">No driver's license uploaded yet.</p>
+      )}
+      <div>
+        <h3>Update Driver’s License</h3>
+        <form onSubmit={handleUpload}>
+          <input type="file" onChange={handleFileChange} />
+          <button type="submit" className="upload-button">
+            Upload License
+          </button>
+        </form>
+      </div>
+      <button onClick={() => setShowProfile(false)} className="goto-register-button">
+        Back to Dashboard
+      </button>
+      {message && <p className="profile-message">{message}</p>}
+    </div>
+  );
+}
+
+export default Profile;
+--- CONTENT END ---
+=== FILE END ===
+
+=== FILE START ===
+Path: frontend\src\components\Register.js
+--- CONTENT START ---
+import React, { useState } from 'react';
+import '../CSS/LoginRegister.css';
+import { auth, db } from '../firebaseClient';
+import { createUserWithEmailAndPassword } from 'firebase/auth';
+import { doc, setDoc } from 'firebase/firestore';
+import UploadLicense from './UploadLicense'; // Import UploadLicense component
+
+function Register({ setToken }) {
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [error, setError] = useState('');
+  const [showUploadLicense, setShowUploadLicense] = useState(false);
+
+  const handleRegister = async (e) => {
+    e.preventDefault();
+    console.log('Starting registration...');
+    try {
+      // Create the user
+      const userCredential = await createUserWithEmailAndPassword(auth, email, password);
+      const user = userCredential.user;
+
+      console.log('Registered user UID:', user.uid);
+
+      // Get and set the authentication token
+      const token = await user.getIdToken();
+      setToken(token);
+
+      // Add user data to Firestore
+      await setDoc(doc(db, 'users', user.uid), {
+        email: user.email,
+        role: 'Driver', // Default role
+        createdAt: new Date().toISOString(), // ISO format for consistency
+      });
+
+      console.log('User successfully added to Firestore.');
+
+      // Show Upload License component
+      setShowUploadLicense(true);
+      setError('');
+    } catch (error) {
+      console.error('Error during registration:', error);
+      setError(error.message);
+    }
+  };
+
+  if (showUploadLicense) {
+    return <UploadLicense token={auth.currentUser?.accessToken || ''} />;
+  }
+
+  return (
+    <div className="login-container">
+      <h2>Register</h2>
+      <form onSubmit={handleRegister}>
+        <input
+          type="email"
+          placeholder="Email"
+          value={email}
+          onChange={(e) => setEmail(e.target.value)}
+          className="login-input"
+        />
+        <input
+          type="password"
+          placeholder="Password"
+          value={password}
+          onChange={(e) => setPassword(e.target.value)}
+          className="login-input"
+        />
+        <button type="submit" className="login-button">
+          Register
+        </button>
+      </form>
+      {error && <p className="error-message">{error}</p>}
+    </div>
+  );
+}
+
+export default Register;
+--- CONTENT END ---
+=== FILE END ===
+
+=== FILE START ===
+Path: frontend\src\components\ReportIssueForm.js
+--- CONTENT START ---
+// components/ReportIssueForm.js
+import React, { useState } from "react";
+import { reportVehicleIssue } from "../services/vehicleService"; // Import the service function
+import { getAuth } from "firebase/auth"; // Import Firebase Authentication
+
+function ReportIssueForm({ vehicleId, setShowReportIssue, fetchVehicles }) {
+  const [issueDescription, setIssueDescription] = useState("");
+  const [message, setMessage] = useState("");
+
+  const handleReportIssueSubmit = async (e) => {
+    e.preventDefault();
+    if (!issueDescription) {
+      setMessage("Please describe the issue before submitting.");
+      return;
+    }
+
+    try {
+      // Fetch the Firebase token
+      const auth = getAuth();
+      const token = await auth.currentUser.getIdToken();
+
+      console.log("Fetched Firebase token:", token); // Debugging log
+
+      // Call the service to report the issue
+      const result = await reportVehicleIssue(vehicleId, { description: issueDescription }, token);
+      if (result.success) {
+        setMessage("Issue reported successfully.");
+        fetchVehicles(); // Refresh the vehicle data
+        setShowReportIssue(null); // Close the form
+      } else {
+        setMessage(result.error);
+      }
+    } catch (error) {
+      console.error("Error reporting issue:", error);
+      setMessage("Failed to report the issue. Please try again.");
+    }
+  };
+
+  return (
+    <div className="report-issue-form">
+      <h2>Report Issue</h2>
+      <form onSubmit={handleReportIssueSubmit}>
+        <textarea
+          value={issueDescription}
+          onChange={(e) => setIssueDescription(e.target.value)}
+          placeholder="Describe the issue"
+        />
+        <button type="submit">Submit</button>
+      </form>
+      {message && <p className="error-message">{message}</p>}
+    </div>
+  );
+}
+
+export default ReportIssueForm;
+--- CONTENT END ---
+=== FILE END ===
+
+=== FILE START ===
+Path: frontend\src\components\ReservationControls.js
+--- CONTENT START ---
+import React from "react";
+
+const ReservationControls = ({ canAddVehicle, canViewAllReservations, setShowReserve, setShowAddVehicle, setShowAllCarReservations, userReservationReset }) => {
+  return (
+    <div className="button-group">
+      <button
+        onClick={() => {
+          setShowReserve(false);
+          userReservationReset(null);
+        }}
+        className="back-button"
+      >
+        Back to Dashboard
+      </button>
+      {canAddVehicle && (
+        <button onClick={() => setShowAddVehicle(true)} className="back-button">
+          Add Vehicle
+        </button>
+      )}
+      {canViewAllReservations && (
+        <button
+          onClick={() => setShowAllCarReservations(true)}
+          className="back-button"
+        >
+          View All Reservations
+        </button>
+      )}
+    </div>
+  );
+};
+
+export default ReservationControls;
+--- CONTENT END ---
+=== FILE END ===
+
+=== FILE START ===
+Path: frontend\src\components\ReserveVehicle.js
+--- CONTENT START ---
+import React, { useState, useEffect, useCallback } from "react";
+import { getUserData } from "../services/authService";
+import {
+  getVehicleData,
+  deleteVehicle,
+  repairVehicle,
+  unreserveVehicle,
+} from "../services/vehicleService";
+import {
+  getReservationData,
+  deleteReservation,
+} from "../services/reservationService";
+import ReserveVehicleForm from "./ReserveVehicleForm";
+import ReportIssueForm from "./ReportIssueForm";
+import VehicleTable from "./VehicleTable";
+import VehicleDetail from "./VehicleDetail";
+import MalfunctionMessage from "./MalfunctionMessage";
+import ReservationControls from "./ReservationControls";
+import { getAuth } from "firebase/auth";
+
+function Reserve({
+  token,
+  setShowReserve,
+  setShowAddVehicle,
+  setShowAllCarReservations,
+  userReservationReset,
+}) {
+  const [message, setMessage] = useState("");
+  const [vehicles, setVehicles] = useState([]);
+  const [reservations, setReservations] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+  const [viewVehicle, setViewVehicle] = useState(null);
+  const [reserveVehicleId, setReserveVehicleId] = useState(null);
+  const [role, setRole] = useState("");
+  const [uid, setUid] = useState(null);
+  const [userReservation, setUserReservation] = useState(null);
+  const [reportIssueVehicleId, setReportIssueVehicleId] = useState(null);
+  const [showMessage, setShowMessage] = useState(null);
+
+  const canAddVehicle = role === "Admin";
+  const canRepairVehicle = role === "Admin";
+  const canDeleteVehicle = role === "Admin";
+  const canViewAllReservations = role === "Admin" || role === "Manager";
+
+  // Debugging: Log variables after all dependencies are declared
+  useEffect(() => {
+    console.log("Reserve Debug - Vehicles:", vehicles);
+    console.log("Reserve Debug - Can Repair Vehicle:", canRepairVehicle);
+    console.log(
+      "Reserve Debug - Handle View Message Function:",
+      handleViewMessage
+    );
+  }, [vehicles, canRepairVehicle]);
+
+  const fetchVehicles = useCallback(async () => {
+    setLoading(true);
+    try {
+      const vehicleSnapshot = await getVehicleData(token);
+      const reservationSnapshot = await getReservationData(token);
+
+      if (vehicleSnapshot.success) {
+        setVehicles(vehicleSnapshot.data);
+      } else {
+        setMessage(vehicleSnapshot.error || "Failed to load vehicle data");
+      }
+
+      if (reservationSnapshot.success) {
+        setReservations(reservationSnapshot.data);
+      } else {
+        setMessage(reservationSnapshot.error || "Failed to load reservations.");
+      }
+    } catch (error) {
+      console.error("Error fetching data:", error);
+      setError(error.message);
+    } finally {
+      setLoading(false);
+    }
+  }, [token]);
+
+  useEffect(() => {
+    const fetchData = async () => {
+      setLoading(true);
+      const userData = await getUserData(token);
+      if (userData.success) {
+        setRole(userData.data.role || "Driver");
+        const auth = getAuth();
+        const user = auth.currentUser;
+        user ? setUid(user.uid) : setUid(null);
+
+        fetchVehicles();
+      }
+    };
+    fetchData();
+  }, [token, fetchVehicles]);
+
+  useEffect(() => {
+    if (reservations.length > 0 && uid) {
+      const userRes = reservations.find((res) => res.userId === uid);
+      setUserReservation(userRes);
+    }
+  }, [reservations, uid]);
+
+  const handleReserve = (vehicleId) => {
+    setReserveVehicleId(vehicleId);
+  };
+
+  const removeReserve = async (vehicle) => {
+    try {
+      const result = await unreserveVehicle(vehicle.vehicleId, token);
+      if (result.success) {
+        const reservation = reservations.find(
+          (res) => res.vehicleId === vehicle.vehicleId && res.userId === uid
+        );
+        if (reservation) {
+          const deleteResult = await deleteReservation(
+            reservation.reservationId,
+            token
+          );
+          if (deleteResult.success) {
+            setUserReservation(null);
+            await fetchVehicles();
+          } else {
+            console.error("Failed to delete reservation:", deleteResult.error);
+          }
+        }
+      } else {
+        console.error("Failed to unreserve vehicle:", result.error);
+      }
+    } catch (error) {
+      console.error("Error removing reservation:", error);
+    }
+  };
+
+  const handleView = (vehicle) => {
+    setViewVehicle(vehicle);
+  };
+
+  const handleRepair = async (vehicleId) => {
+    const result = await repairVehicle(vehicleId, token);
+    if (result.success) {
+      await fetchVehicles();
+    }
+  };
+
+  const handleDelete = async (vehicleId) => {
+    const result = await deleteVehicle(vehicleId, token);
+    if (result.success) {
+      await fetchVehicles();
+    }
+  };
+
+  const handleViewMessage = (vehicleId) => {
+    setShowMessage(vehicleId);
+  };
+
+  const sanitizeMessage = (msg) => {
+    if (msg && msg.startsWith("Unexpected token '<'")) {
+      return ""; // Return an empty string or a default message to hide it
+    }
+    return msg; // Otherwise, keep the original message
+  };
+
+  if (reserveVehicleId) {
+    return (
+      <ReserveVehicleForm
+        token={token}
+        reserveVehicleId={reserveVehicleId}
+        setReserveVehicleId={setReserveVehicleId}
+        fetchVehicles={fetchVehicles}
+      />
+    );
+  }
+
+  if (viewVehicle) {
+    return (
+      <VehicleDetail
+        viewVehicle={viewVehicle}
+        setViewVehicle={setViewVehicle}
+        userReservationReset={userReservationReset}
+      />
+    );
+  }
+
+  if (reportIssueVehicleId) {
+    return (
+      <ReportIssueForm
+        vehicleId={reportIssueVehicleId}
+        setShowReportIssue={() => setReportIssueVehicleId(null)}
+        fetchVehicles={fetchVehicles}
+      />
+    );
+  }
+
+  if (showMessage) {
+    return (
+      <MalfunctionMessage
+        vehicleId={showMessage}
+        setShowMessage={setShowMessage}
+        token={token} // Pass token for API calls
+      />
+    );
+  }
+
+  return (
+    <div className="vehicle-container">
+      <h2>List of All Vehicles</h2>
+      {loading ? (
+        <p>Loading...</p>
+      ) : error ? (
+        <p>Error loading vehicles: {error}</p>
+      ) : vehicles.length === 0 ? (
+        <p>No vehicles found.</p>
+      ) : (
+        <VehicleTable
+          vehicles={vehicles}
+          userReservation={userReservation}
+          canRepairVehicle={canRepairVehicle}
+          canDeleteVehicle={canDeleteVehicle}
+          handleView={handleView}
+          handleReserve={handleReserve}
+          removeReserve={removeReserve}
+          setReportIssueVehicleId={setReportIssueVehicleId}
+          handleRepair={handleRepair}
+          handleDelete={handleDelete}
+          handleViewMessage={handleViewMessage}
+        />
+      )}
+      <ReservationControls
+        canAddVehicle={canAddVehicle}
+        canViewAllReservations={canViewAllReservations}
+        setShowReserve={setShowReserve}
+        setShowAddVehicle={setShowAddVehicle}
+        setShowAllCarReservations={setShowAllCarReservations}
+        userReservationReset={userReservationReset}
+      />
+      {message && <p className="profile-message">{sanitizeMessage(message)}</p>}
+    </div>
+  );
+}
+
+export default Reserve;
+--- CONTENT END ---
+=== FILE END ===
+
+=== FILE START ===
+Path: frontend\src\components\ReserveVehicleForm.js
+--- CONTENT START ---
+// ReserveVehicleForm.js
+
+import React, { useState } from 'react';
+import Calendar from 'react-calendar';
+import 'react-calendar/dist/Calendar.css';
+import '../App.css';
+import '../CSS/Profile.css';
+import '../CSS/ReserveVehicle.css';
+import '../CSS/AddVehicle.css';
+import { reserveVehicle } from '../services/vehicleService';
+import { db, collection, doc } from '../firebaseClient'; // Import Firestore
+import { getAuth } from 'firebase/auth'; // Import Firebase Authentication
+
+function ReserveVehicleForm({ token, reserveVehicleId, setReserveVehicleId, fetchVehicles }) {
+  const [endDate, setEndDate] = useState(new Date());
+  const startDate = new Date().toISOString().split('T')[0]; // Current date in 'YYYY-MM-DD' format
+  const status = 'Active';
+  const [message, setMessage] = useState('');
+
+  const handleReservationSubmit = async (e) => {
+    e.preventDefault();
+
+    console.log('[ReserveVehicleForm] Start Date:', startDate);
+    console.log('[ReserveVehicleForm] End Date:', endDate);
+
+    // Get the authenticated user's UID
+    const auth = getAuth();
+    const user = auth.currentUser;
+    const uid = user ? user.uid : null;
+
+    if (!uid) {
+      console.error('[ReserveVehicleForm] User not authenticated.');
+      setMessage('Please log in to make a reservation.');
+      return;
+    }
+
+    if (!endDate) {
+      console.error('[ReserveVehicleForm] End date is missing.');
+      setMessage('Please select an end date.');
+      return;
+    }
+
+    // Generate a unique document reference with a new ID
+    const reservationRef = doc(collection(db, 'reservation'));
+    const reservationId = reservationRef.id;
+
+    const newReservation = {
+      reservationId,
+      vehicleId: reserveVehicleId,
+      userId: uid, // Use the authenticated user's UID
+      startDate: startDate,
+      endDate: endDate.toISOString().split('T')[0],
+      status: status,
+    };
+
+    console.log('[ReserveVehicleForm] New reservation data:', newReservation);
+
+    try {
+      // Add the document with the custom ID and data
+      //await setDoc(reservationRef, newReservation);
+      console.log(`[ReserveVehicleForm] Added reservation with ID: ${reservationId}`);
+      setReserveVehicleId(null);
+
+      // Call backend to update vehicle status
+      const result = await reserveVehicle(reserveVehicleId, {
+        startDate,
+        endDate: endDate.toISOString().split('T')[0],
+      }, token);
+
+      console.log('[ReserveVehicleForm] Reserve vehicle response:', result);
+
+      if (result.success) {
+        console.log(`[ReserveVehicleForm] Vehicle ${reserveVehicleId} status updated.`);
+        fetchVehicles(); // Refresh the list of vehicles
+      } else {
+        console.error(`[ReserveVehicleForm] Failed to update vehicle status for ID: ${reserveVehicleId}`);
+        setMessage('Failed to reserve vehicle. Please try again.');
+      }
+    } catch (error) {
+      console.error('[ReserveVehicleForm] Error adding reservation:', error);
+      setMessage('An error occurred while reserving the vehicle.');
+    }
+  };
+
+  return (
+    <div className="add-vehicle-container">
+      <h2>Reserve Vehicle</h2>
+      <form onSubmit={handleReservationSubmit}>
+        <label>Start Date: {startDate}</label>
+        <br />
+        <label htmlFor="endDate">Select End Date:</label>
+        <Calendar
+          onChange={setEndDate}
+          value={endDate}
+          minDate={new Date()} // Prevent selection of past dates
+        />
+        <br />
+        <button type="submit" className="add-vehicle-button">Reserve</button>
+      </form>
+      <button onClick={() => setReserveVehicleId(null)} className="goto-vehicle-select-button">
+        Back to Vehicle selection
+      </button>
+      {message && <p className="profile-message">{message}</p>}
+    </div>
+  );
+}
+
+export default ReserveVehicleForm;
+--- CONTENT END ---
+=== FILE END ===
+
+=== FILE START ===
+Path: frontend\src\components\UploadLicense.js
+--- CONTENT START ---
+// components/UploadLicense.js
+import React, { useState } from 'react';
+import PropTypes from 'prop-types';
+import '../CSS/UploadLicense.css';
+import { uploadLicense } from '../services/authService';
+
+function UploadLicense({ token, setLicenseUploaded }) {
+  const [file, setFile] = useState(null);
+  const [message, setMessage] = useState('');
+
+  const handleFileChange = (e) => {
+    setFile(e.target.files[0]);
+  };
+
+  const handleUpload = async (e) => {
+    e.preventDefault();
+    if (file && token) {
+      try {
+        const result = await uploadLicense(file, token);
+        if (result.success) {
+          setMessage(result.message || 'Upload successful');
+          if (setLicenseUploaded) {
+            setLicenseUploaded(true); // Update state in the parent component
+          }
+        } else {
+          setMessage(result.error || 'Upload failed');
+        }
+      } catch (err) {
+        setMessage('An error occurred while uploading. Please try again.');
+        console.error('[UploadLicense] Error:', err);
+      }
+    } else {
+      setMessage('Please select a file and make sure you are logged in.');
+    }
+  };
+
+  return (
+    <div className="upload-container">
+      <h2>Upload Driver's License</h2>
+      <form onSubmit={handleUpload} className="upload-form">
+        <input
+          type="file"
+          onChange={handleFileChange}
+          className="file-input"
+          accept="image/*"
+        />
+        <button type="submit" className="upload-button">
+          Upload
+        </button>
+      </form>
+      {message && <p className="upload-message">{message}</p>}
+    </div>
+  );
+}
+
+UploadLicense.propTypes = {
+  token: PropTypes.string.isRequired, // Ensure the token is passed as a string
+  setLicenseUploaded: PropTypes.func, // This is optional now to avoid breaking the component
+};
+
+export default UploadLicense;
+--- CONTENT END ---
+=== FILE END ===
+
+=== FILE START ===
+Path: frontend\src\components\VehicleDetail.js
+--- CONTENT START ---
+import React from "react";
+
+const VehicleDetail = ({ viewVehicle, setViewVehicle, userReservationReset }) => {
+  return (
+    <div className="vehicle-detail">
+      <h2>{viewVehicle.vehicleName} Details</h2>
+      <img src={viewVehicle.image} alt={viewVehicle.vehicleName} />
+      <table className="vehicle-table">
+        <tbody>
+          <tr>
+            <td>Vehicle Name:</td>
+            <td>{viewVehicle.vehicleName}</td>
+          </tr>
+          <tr>
+            <td>Engine:</td>
+            <td>{viewVehicle.engine}</td>
+          </tr>
+          <tr>
+            <td>Horsepower:</td>
+            <td>{viewVehicle.hp} HP</td>
+          </tr>
+          <tr>
+            <td>Color:</td>
+            <td>{viewVehicle.color}</td>
+          </tr>
+          <tr>
+            <td>Year:</td>
+            <td>{viewVehicle.year}</td>
+          </tr>
+          <tr>
+            <td>Status:</td>
+            <td>{viewVehicle.status}</td>
+          </tr>
+        </tbody>
+      </table>
+      <button
+        onClick={() => {
+          setViewVehicle(null);
+          userReservationReset(null);
+        }}
+        className="goto-register-button"
+      >
+        Back to vehicle list
+      </button>
+    </div>
+  );
+};
+
+export default VehicleDetail;
+--- CONTENT END ---
+=== FILE END ===
+
+=== FILE START ===
+Path: frontend\src\components\VehicleRow.js
+--- CONTENT START ---
+import React from "react";
+
+const VehicleRow = ({ vehicle, userReservation, canRepairVehicle, canDeleteVehicle, handleView, handleReserve, removeReserve, setReportIssueVehicleId, handleRepair, handleDelete, handleViewMessage }) => {
+  const status = vehicle.status;
+
+  // Debugging
+  console.log("VehicleRow Debug - Vehicle:", vehicle);
+  console.log("VehicleRow Debug - Status:", status);
+  console.log("VehicleRow Debug - Can Repair Vehicle:", canRepairVehicle);
+
+  return (
+    <tr className={status}>
+      <td>{vehicle.vehicleName}</td>
+      <td>
+        {vehicle.engine} - {vehicle.hp} HP
+      </td>
+      <td>
+        <div className="vehicle-actions">
+          <button onClick={() => handleView(vehicle)} className="view-button">
+            View
+          </button>
+          {status === "available" && !userReservation && (
+            <button onClick={() => handleReserve(vehicle.vehicleId)} className="reserve-button">
+              Reserve
+            </button>
+          )}
+          {status !== "available" && userReservation?.vehicleId === vehicle.vehicleId && (
+            <>
+              <button onClick={() => removeReserve(vehicle)} className="reserve-button">
+                Remove Reserve
+              </button>
+              <button onClick={() => setReportIssueVehicleId(vehicle.vehicleId)} className="reserve-button">
+                Report Issue
+              </button>
+            </>
+          )}
+          {canRepairVehicle && status === "repair" && (
+            <>
+              <button onClick={() => handleRepair(vehicle.vehicleId)} className="reserve-button">
+                Repair
+              </button>
+              <button onClick={() => handleViewMessage(vehicle.vehicleId)} className="reserve-button">
+                View Message
+              </button>
+            </>
+          )}
+          {canDeleteVehicle && (
+            <button onClick={() => handleDelete(vehicle.vehicleId)} className="reserve-button">
+              Delete
+            </button>
+          )}
+        </div>
+      </td>
+    </tr>
+  );
+};
+
+export default VehicleRow;
+--- CONTENT END ---
+=== FILE END ===
+
+=== FILE START ===
+Path: frontend\src\components\VehicleTable.js
+--- CONTENT START ---
+import React from "react";
+import VehicleRow from "./VehicleRow";
+
+const VehicleTable = ({ vehicles, userReservation, canRepairVehicle, canDeleteVehicle, handleView, handleReserve, removeReserve, setReportIssueVehicleId, handleRepair, handleDelete, handleViewMessage }) => {
+  // Debugging
+  console.log("VehicleTable Debug - Vehicles:", vehicles);
+  console.log("VehicleTable Debug - Handle View Message Function:", handleViewMessage);
+
+  return (
+    <table className="vehicle-table">
+      <thead>
+        <tr>
+          <th>Vehicle Name</th>
+          <th>Engine</th>
+          <th>Actions</th>
+        </tr>
+      </thead>
+      <tbody>
+        {vehicles.map((vehicle) => (
+          <VehicleRow
+            key={vehicle.vehicleId}
+            vehicle={vehicle}
+            userReservation={userReservation}
+            canRepairVehicle={canRepairVehicle}
+            canDeleteVehicle={canDeleteVehicle}
+            handleView={handleView}
+            handleReserve={handleReserve}
+            removeReserve={removeReserve}
+            setReportIssueVehicleId={setReportIssueVehicleId}
+            handleRepair={handleRepair}
+            handleDelete={handleDelete}
+            handleViewMessage={handleViewMessage}
+          />
+        ))}
+      </tbody>
+    </table>
+  );
+};
+
+export default VehicleTable;
+--- CONTENT END ---
+=== FILE END ===
+
+=== FILE START ===
+Path: frontend\src\components\ViewReservation.js
+--- CONTENT START ---
+// components/ViewReservation.js
+import React, { useState, useEffect } from 'react';
+import '../CSS/UploadLicense.css';
+import '../CSS/ReserveVehicle.css';
+
+import { getVehicleData } from '../services/vehicleService';
+
+function ViewRes({token, reservationData}) {
+    const [vehicles, setVehicles] = useState([]); 
+    const [userVehicle, setUserVehicle] = useState(null); 
+
+    useEffect(() => {
+        const fetchVehicles = async () => {
+            try {
+            const vehicleSnapshot = await getVehicleData(token);
+            if (vehicleSnapshot.success) {
+                setVehicles(vehicleSnapshot.data);
+            } 
+            } catch (error) {
+            console.log(error);
+            }
+        };
+        fetchVehicles();
+    }, [token]);
+
+    useEffect(() => {
+        // Fetch user reservation only after `reservations` and `uid` have been set
+        if (vehicles.length > 0) {
+          const userRes = vehicles.find(res => res.vehicleId === reservationData.vehicleId);
+          setUserVehicle(userRes);
+        }
+      }, [vehicles, reservationData.vehicleId]); // Add reservationData.vehicleId here
+
+    
+
+    if(userVehicle) return(
+      <div className="reservation-container">
+        <h2>Your Current Reservation</h2>
+            <table className="vehicle-table">
+                <tbody>
+                <tr>
+                    <td><strong>Vehicle Name:</strong></td>
+                    <td>{userVehicle.vehicleName}</td>
+                </tr>
+                <tr>
+                    <td><strong>Start Date:</strong></td>
+                    <td>{reservationData.startDate}</td>
+                </tr>
+                <tr>
+                    <td><strong>End Date:</strong></td>
+                    <td>{reservationData.endDate}</td>
+                </tr>
+                <tr>
+                    <td><strong>Status:</strong></td>
+                    <td>{reservationData.status}</td>
+                </tr>
+                </tbody>
+            </table>
+      </div>
+    )
+
+    return(<></>);
+}
+
+export default ViewRes;
+--- CONTENT END ---
+=== FILE END ===
+
+=== FILE START ===
+Path: frontend\src\config.js
+--- CONTENT START ---
+const checkApiAvailability = async (url) => {
+  try {
+    const response = await fetch(`${url}/health`, { method: 'GET' }); // Assuming your API has a health check endpoint
+    return response.ok;
+  } catch (error) {
+    return false;
+  }
+};
+
+const getApiUrl = async () => {
+  const primaryApi = 'https://rirssolo.onrender.com/api';
+  const fallbackApi = 'http://localhost:5000/api';
+
+  const isPrimaryAvailable = await checkApiAvailability(primaryApi);
+  return isPrimaryAvailable ? primaryApi : fallbackApi;
+};
+
+const config = {
+  getApiUrl,
+};
+
+export default config;
+--- CONTENT END ---
+=== FILE END ===
+
+=== FILE START ===
+Path: frontend\src\firebaseClient.js
+--- CONTENT START ---
+// src/firebaseClient.js
+import { initializeApp } from 'firebase/app';
+import { getAuth, signInWithEmailAndPassword, createUserWithEmailAndPassword } from 'firebase/auth';
+import { getFirestore, collection, addDoc, doc, setDoc} from 'firebase/firestore'; // Import Firestore
+import firebaseConfig from './firebaseConfig';
+
+// Initialize Firebase
+const app = initializeApp(firebaseConfig);
+const auth = getAuth(app);
+const db = getFirestore(app); // Initialize Firestore
+
+export { auth, db, signInWithEmailAndPassword, createUserWithEmailAndPassword ,collection, addDoc, doc, setDoc};
+--- CONTENT END ---
+=== FILE END ===
+
+=== FILE START ===
+Path: frontend\src\firebaseConfig.js
+--- CONTENT START ---
+const firebaseConfig = {
+    apiKey: "AIzaSyCkN8jy9U1CyiZFfvfS9msRIMomQgrME9k",
+    authDomain: "company-vehicle-management.firebaseapp.com",
+    projectId: "company-vehicle-management",
+    storageBucket: "company-vehicle-management.firebasestorage.app",
+    messagingSenderId: "246118144076",
+    appId: "1:246118144076:web:72c6742bf25f6573bbbce9"
+  };
+
+export default firebaseConfig;
+--- CONTENT END ---
+=== FILE END ===
+
+=== FILE START ===
+Path: frontend\src\index.css
+--- CONTENT START ---
+body {
+  margin: 0;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen',
+    'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue',
+    sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+code {
+  font-family: source-code-pro, Menlo, Monaco, Consolas, 'Courier New',
+    monospace;
+}
+--- CONTENT END ---
+=== FILE END ===
+
+=== FILE START ===
+Path: frontend\src\index.js
+--- CONTENT START ---
+import React from 'react';
+import ReactDOM from 'react-dom';
+import App from './App';
+
+ReactDOM.render(<App />, document.getElementById('root'));
+--- CONTENT END ---
+=== FILE END ===
+
+=== FILE START ===
+Path: frontend\src\reportWebVitals.js
+--- CONTENT START ---
+const reportWebVitals = onPerfEntry => {
+  if (onPerfEntry && onPerfEntry instanceof Function) {
+    import('web-vitals').then(({ getCLS, getFID, getFCP, getLCP, getTTFB }) => {
+      getCLS(onPerfEntry);
+      getFID(onPerfEntry);
+      getFCP(onPerfEntry);
+      getLCP(onPerfEntry);
+      getTTFB(onPerfEntry);
+    });
+  }
+};
+
+export default reportWebVitals;
+--- CONTENT END ---
+=== FILE END ===
+
+=== FILE START ===
+Path: frontend\src\services\authService.js
+--- CONTENT START ---
+import config from '../config';
+
+export const uploadLicense = async (file, token) => {
+  const formData = new FormData();
+  formData.append('licenseImage', file);
+
+  try {
+    const API_URL = await config.getApiUrl();
+    const response = await fetch(`${API_URL}/auth/upload-license`, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+      body: formData,
+    });
+    const data = await response.json();
+    if (response.ok) {
+      return { success: true, message: data.message };
+    } else {
+      return { success: false, error: data.message };
+    }
+  } catch (error) {
+    return { success: false, error: error.message };
+  }
+};
+
+export const getUserData = async (token) => {
+  try {
+    const API_URL = await config.getApiUrl();
+    const response = await fetch(`${API_URL}/auth/profile`, {
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+    });
+    const data = await response.json();
+    if (response.ok) {
+      return { success: true, data };
+    } else {
+      return { success: false, error: data.message };
+    }
+  } catch (error) {
+    return { success: false, error: error.message };
+  }
+};
+--- CONTENT END ---
+=== FILE END ===
+
+=== FILE START ===
+Path: frontend\src\services\reservationService.js
+--- CONTENT START ---
+// services/resrvationService.js
+import config from '../config';
+
+export const getReservationData = async (token) => {
+  try {
+    const API_URL = await config.getApiUrl();
+    const response = await fetch(`${API_URL}/reservation/reservation`, {
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+    });
+    const data = await response.json();
+    if (response.ok) {
+      return { success: true, data };
+    } else {
+      return { success: false, error: data.message };
+    }
+  } catch (error) {
+    return { success: false, error: error.message };
+  }
+};
+
+export const getReservation = async (resId, token) => {
+  try {
+    const API_URL = await config.getApiUrl();
+    const response = await fetch(`${API_URL}/reservation/reservation/${resId}`, {
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+    });
+
+    const data = await response.json();
+    if (response.ok) {
+      return { success: true, data };
+    } else {
+      return { success: false, error: data.message };
+    }
+  } catch (error) {
+    return { success: false, error: error.message };
+  }
+};
+
+export const deleteReservation = async (resId, token) => {
+  try {
+    const API_URL = await config.getApiUrl();
+    const response = await fetch(`${API_URL}/reservation/reservation/${resId}`, {
+      method: 'DELETE',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${token}`,
+      },
+    });
+
+    const data = await response.json();
+    if (response.ok) {
+      return { success: true, data };
+    } else {
+      return { success: false, error: data.message };
+    }
+  } catch (error) {
+    return { success: false, error: error.message };
+  }
+};
+--- CONTENT END ---
+=== FILE END ===
+
+=== FILE START ===
+Path: frontend\src\services\vehicleService.js
+--- CONTENT START ---
+// services/vehicleService.js
+import config from '../config';
+
+export const getVehicleData = async (token) => {
+  try {
+    const API_URL = await config.getApiUrl();
+    const response = await fetch(`${API_URL}/vehicle/vehicles`, {
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+    });
+
+    const contentType = response.headers.get('content-type');
+    if (!contentType || !contentType.includes('application/json')) {
+      const errorText = await response.text();
+      throw new Error(`Unexpected response: ${errorText}`);
+    }
+
+    const data = await response.json();
+    if (response.ok) {
+      return { success: true, data };
+    } else {
+      return { success: false, error: data.message };
+    }
+  } catch (error) {
+    return { success: false, error: error.message };
+  }
+};
+
+export const deleteVehicle = async (vehicleId, token) => {
+  try {
+    const API_URL = await config.getApiUrl();
+    const response = await fetch(`${API_URL}/vehicle/vehicles/${vehicleId}`, {
+      method: 'DELETE',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${token}`,
+      },
+    });
+
+    const data = await response.json();
+    if (response.ok) {
+      return { success: true, data };
+    } else {
+      return { success: false, error: data.message };
+    }
+  } catch (error) {
+    return { success: false, error: error.message };
+  }
+};
+
+export const repairVehicle = async (vehicleId, token) => {
+  try {
+    const API_URL = await config.getApiUrl();
+    const response = await fetch(`${API_URL}/vehicle/vehicles/${vehicleId}/repair`, {
+      method: 'PATCH',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${token}`,
+      },
+    });
+
+    const data = await response.json();
+    if (response.ok) {
+      return { success: true, data };
+    } else {
+      return { success: false, error: data.message };
+    }
+  } catch (error) {
+    return { success: false, error: error.message };
+  }
+};
+
+export const unreserveVehicle = async (vehicleId, token) => {
+  try {
+    const API_URL = await config.getApiUrl();
+    const response = await fetch(`${API_URL}/vehicle/vehicles/${vehicleId}/unreserve`, {
+      method: 'PATCH',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${token}`,
+      },
+    });
+
+    const data = await response.json();
+    if (response.ok) {
+      return { success: true, data };
+    } else {
+      return { success: false, error: data.message };
+    }
+  } catch (error) {
+    return { success: false, error: error.message };
+  }
+};
+
+export const reserveVehicle = async (vehicleId, reservationData, token) => {
+  try {
+    const API_URL = await config.getApiUrl();
+    const response = await fetch(`${API_URL}/vehicle/vehicles/${vehicleId}/reserve`, {
+      method: 'PATCH',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify(reservationData),
+    });
+
+    const data = await response.json();
+    if (response.ok) {
+      return { success: true, data };
+    } else {
+      return { success: false, error: data.message };
+    }
+  } catch (error) {
+    return { success: false, error: error.message };
+  }
+};
+
+export const getAdminReservations = async (token) => {
+  try {
+    const API_URL = await config.getApiUrl();
+    const response = await fetch(`${API_URL}/vehicle/admin-reservations`, {
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+    });
+    const data = await response.json();
+    if (response.ok) {
+      return { success: true, data };
+    } else {
+      return { success: false, error: data.message };
+    }
+  } catch (error) {
+    return { success: false, error: error.message };
+  }
+};
+
+export const reportVehicleIssue = async (vehicleId, issueData, token) => {
+  try {
+    const API_URL = await config.getApiUrl();
+    const response = await fetch(`${API_URL}/vehicle/vehicles/${vehicleId}/report-issue`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify(issueData),
+    });
+
+    const data = await response.json();
+    if (response.ok) {
+      return { success: true, data };
+    } else {
+      return { success: false, error: data.message };
+    }
+  } catch (error) {
+    return { success: false, error: error.message };
+  }
+};
+
+export const getMalfunctionData = async (token) => {
+  try {
+    const API_URL = await config.getApiUrl();
+    const response = await fetch(`${API_URL}/vehicle/malfunctions`, {
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+    });
+
+    const data = await response.json();
+    if (response.ok) {
+      return { success: true, data };
+    } else {
+      return { success: false, error: data.message };
+    }
+  } catch (error) {
+    return { success: false, error: error.message };
+  }
+};
+
+--- CONTENT END ---
+=== FILE END ===
+
+=== FILE START ===
+Path: frontend\src\setupTests.js
+--- CONTENT START ---
+// jest-dom adds custom jest matchers for asserting on DOM nodes.
+// allows you to do things like:
+// expect(element).toHaveTextContent(/react/i)
+// learn more: https://github.com/testing-library/jest-dom
+import '@testing-library/jest-dom';
+--- CONTENT END ---
+=== FILE END ===
+
+====================
+OPTIONAL ROOT FILES
+====================
+
+=== FILE START ===
+Path: .firebaserc
+--- CONTENT START ---
+{
+  "projects": {
+    "default": "company-vehicle-management"
+  }
+}
+--- CONTENT END ---
+=== FILE END ===
+
+=== FILE START ===
+Path: Dockerfile.dockerhub
+--- CONTENT START ---
+# Use the official Node.js image as the base image
+FROM node:18
+
+# Set the working directory inside the containerrr
+WORKDIR /app
+
+# Copy package.json and package-lock.json to the working directory
+COPY backend/package*.json ./
+
+# Install dependencies
+RUN npm ci
+
+# Copy the rest of the backend code to the working directory
+COPY backend/ ./
+
+# Expose the port that your backend server listens on
+EXPOSE 10000
+
+# Start the backend server
+CMD ["npm", "start"]
+--- CONTENT END ---
+=== FILE END ===
+
+=== FILE START ===
+Path: firebase.json
+--- CONTENT START ---
+{
+  "firestore": {
+    "rules": "firestore.rules",
+    "indexes": "firestore.indexes.json"
+  },
+  "hosting": {
+    "public": "frontend/build",
+    "ignore": [
+      "firebase.json",
+      "**/.*",
+      "**/node_modules/**"
+    ],
+    "rewrites": [
+      {
+        "source": "**",
+        "destination": "/index.html"
+      }
+    ]
+  }
+}
+--- CONTENT END ---
+=== FILE END ===
+
+=== FILE START ===
+Path: firestore.rules
+--- CONTENT START ---
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // This rule allows anyone with your Firestore database reference to view, edit,
+    // and delete all data in your Firestore database. It is useful for getting
+    // started, but it is configured to expire after 30 days because it
+    // leaves your app open to attackers. At that time, all client
+    // requests to your Firestore database will be denied.
+    //
+    // Make sure to write security rules for your app before that time, or else
+    // all client requests to your Firestore database will be denied until you Update
+    // your rules
+    match /{document=**} {
+      allow read, write: if request.time < timestamp.date(2024, 12, 2);
+    }
+  }
+}
+--- CONTENT END ---
+=== FILE END ===
+
+=== FILE START ===
+Path: firestore.indexes.json
+--- CONTENT START ---
+{
+  "indexes": [],
+  "fieldOverrides": []
+}
+--- CONTENT END ---
+=== FILE END ===
+
+=== FILE START ===
+Path: package-lock.json
+--- CONTENT START ---
+{
+  "name": "RIRS",
+  "lockfileVersion": 3,
+  "requires": true,
+  "packages": {}
+}
+--- CONTENT END ---
+=== FILE END ===
+
+=== FILE START ===
+Path: sonar-project.properties
+--- CONTENT START ---
+# Global Configuration
+sonar.projectKey=PajovicVanja_RIRSsolo
+sonar.organization=pajovicvanja
+sonar.host.url=https://sonarcloud.io
+
+# Backend Configuration
+sonar.sources=backend,frontend
+sonar.exclusions=**/node_modules/**, **/dist/**
+
+# Test Coverage for Backend (Express/Node)
+sonar.javascript.lcov.reportPaths=backend/coverage/lcov.info
+
+# Test Coverage for Frontend (React)
+sonar.typescript.lcov.reportPaths=frontend/coverage/lcov.info
+--- CONTENT END ---
+=== FILE END ===
