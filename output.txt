@@ -1,4 +1,4 @@
-Output generated at: 2025-10-04T16:17:45.371Z
+Output generated at: 2025-10-04T16:26:23.456Z
 Project root: C:\aaFERI\PREDMETI\3. Semestar\VUI\App\RIRSsolo
 
 ====================
@@ -3200,11 +3200,7 @@ Path: package.json
 Path: vercel.json
 --- CONTENT START ---
 {
-  "version": 2,
-  "rewrites": [
-    { "source": "/api/(.*)", "destination": "/api/$1" },
-    { "source": "/(.*)", "destination": "/index.html" }
-  ]
+  "version": 2
 }
 --- CONTENT END ---
 === FILE END ===
