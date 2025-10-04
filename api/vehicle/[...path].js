@@ -7,8 +7,12 @@ module.exports = async (req, res) => {
   if (handlePreflight(req, res)) return; // OPTIONS
   setCors(req, res);
 
-  const seg = req.query.path;
-  const parts = Array.isArray(seg) ? seg : (seg ? [seg] : []);
+const seg = req.query.path;
+const parts = Array.isArray(seg)
+  ? seg
+  : seg
+    ? String(seg).split('/').filter(Boolean)
+    : (req.url.split('?')[0].replace(/^\/api\/vehicle\/?/, '').split('/').filter(Boolean));
 
   const user = await verifyAuth(req, res);
   if (!user) return;

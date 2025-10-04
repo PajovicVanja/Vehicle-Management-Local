@@ -6,8 +6,14 @@
       "headers": [
         { "key": "Access-Control-Allow-Origin", "value": "*" },
         { "key": "Access-Control-Allow-Methods", "value": "GET,POST,PATCH,DELETE,OPTIONS" },
-        { "key": "Access-Control-Allow-Headers", "value": "Authorization, Content-Type, X-Requested-With" }
+        { "key": "Access-Control-Allow-Headers", "value": "Authorization, Content-Type, X-Requested-With" },
+        { "key": "Access-Control-Allow-Credentials", "value": "true" }
       ]
     }
+  ],
+  "rewrites": [
+    { "source": "/api/auth/(.*)",        "destination": "/api/auth/[...path].js?path=$1" },
+    { "source": "/api/vehicle/(.*)",     "destination": "/api/vehicle/[...path].js?path=$1" },
+    { "source": "/api/reservation/(.*)", "destination": "/api/reservation/[...path].js?path=$1" }
   ]
 }

@@ -1,4 +1,4 @@
-Output generated at: 2025-10-04T16:36:49.767Z
+Output generated at: 2025-10-04T16:50:38.374Z
 Project root: C:\aaFERI\PREDMETI\3. Semestar\VUI\App\RIRSsolo
 
 ====================
@@ -75,7 +75,10 @@ const seg = req.query.path;
 Path: api\health.js
 --- CONTENT START ---
 // api/health.js
+const { setCors, handlePreflight } = require('./_lib/cors');
 module.exports = (req, res) => {
+  if (handlePreflight(req, res)) return;
+  setCors(req, res);
   res.status(200).json({ status: 'ok', message: 'API is running', timestamp: new Date().toISOString() });
 };
 --- CONTENT END ---
@@ -3200,7 +3203,17 @@ Path: package.json
 Path: vercel.json
 --- CONTENT START ---
 {
-  "version": 2
+  "version": 2,
+  "headers": [
+    {
+      "source": "/api/(.*)",
+      "headers": [
+        { "key": "Access-Control-Allow-Origin", "value": "*" },
+        { "key": "Access-Control-Allow-Methods", "value": "GET,POST,PATCH,DELETE,OPTIONS" },
+        { "key": "Access-Control-Allow-Headers", "value": "Authorization, Content-Type, X-Requested-With" }
+      ]
+    }
+  ]
 }
 --- CONTENT END ---
 === FILE END ===
