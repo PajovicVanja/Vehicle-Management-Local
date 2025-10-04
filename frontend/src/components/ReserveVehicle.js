@@ -78,21 +78,24 @@ function Reserve({
     }
   }, [token]);
 
-  useEffect(() => {
-    const fetchData = async () => {
-      setLoading(true);
-      const userData = await getUserData(token);
-      if (userData.success) {
-        setRole(userData.data.role || "Driver");
-        const auth = getAuth();
-        const user = auth.currentUser;
-        user ? setUid(user.uid) : setUid(null);
-
-        fetchVehicles();
-      }
-    };
-    fetchData();
-  }, [token, fetchVehicles]);
+useEffect(() => {
+  const fetchData = async () => {
+    setLoading(true);
+    const userData = await getUserData(token);
+    if (userData.success) {
+      setRole(userData.data.role || "Driver");
+      const auth = getAuth();
+      const user = auth.currentUser;
+      user ? setUid(user.uid) : setUid(null);
+      await fetchVehicles();
+    } else {
+      // IMPORTANT: clear loading and show a helpful message
+      setMessage(userData.error || "Failed to load profile");
+      setLoading(false);
+    }
+  };
+  fetchData();
+}, [token, fetchVehicles]);
 
   useEffect(() => {
     if (reservations.length > 0 && uid) {
