@@ -28,7 +28,6 @@ const DIR_BASENAME_IGNORES = new Set([
 // Additional path-based directory ignores (relative to root, normalized)
 const DIR_PATH_IGNORES = [
   'backend/tests',
-  'frontend/src/__tests__',
   'frontend/src/CSS',
 ].map(p => p.toLowerCase());
 
@@ -54,7 +53,7 @@ const ROOT_OPTIONAL_FILES = [
   'firebase.json',
   'firestore.rules',
   'firestore.indexes.json',
-  'package-lock.json',
+  'package.json',
   'vercel.json',
 ];
 

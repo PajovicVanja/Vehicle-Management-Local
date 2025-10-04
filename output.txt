@@ -1,4 +1,4 @@
-Output generated at: 2025-10-04T09:57:50.237Z
+Output generated at: 2025-10-04T10:45:56.273Z
 Project root: C:\aaFERI\PREDMETI\3. Semestar\VUI\App\RIRSsolo
 
 ====================
@@ -6,75 +6,63 @@ DUMP FROM DIRECTORIES
 ====================
 
 === FILE START ===
-Path: api\auth\profile.js
+Path: api\auth\[...path].js
 --- CONTENT START ---
-// api/auth/profile.js
-const { db } = require('../_lib/firebaseAdmin');
-const { verifyAuth } = require('../_lib/verifyAuth');
-
-module.exports = async (req, res) => {
-  if (req.method !== 'GET') return res.status(405).json({ message: 'Method not allowed' });
-
-  const user = await verifyAuth(req, res);
-  if (!user) return;
-
-  try {
-    const userDoc = await db.collection('users').doc(user.uid).get();
-    if (!userDoc.exists) return res.status(404).json({ message: 'User document not found' });
-
-    const data = userDoc.data();
-    res.status(200).json({
-      email: data.email,
-      role: data.role || 'Driver',
-      licenseImageUrl: data.licenseImageUrl || null
-    });
-  } catch (e) {
-    console.error('profile error:', e);
-    res.status(500).json({ message: 'Error fetching profile', error: e.message });
-  }
-};
---- CONTENT END ---
-=== FILE END ===
-
-=== FILE START ===
-Path: api\auth\upload-license.js
---- CONTENT START ---
-// api/auth/upload-license.js
+// api/auth/[...path].js
 const formidable = require('formidable');
 const cloudinary = require('../_lib/cloudinary');
 const { db } = require('../_lib/firebaseAdmin');
 const { verifyAuth } = require('../_lib/verifyAuth');
 
 module.exports = async (req, res) => {
-  if (req.method !== 'POST') return res.status(405).json({ message: 'Method not allowed' });
+  const seg = req.query.path;
+  const parts = Array.isArray(seg) ? seg : (seg ? [seg] : []);
 
   const user = await verifyAuth(req, res);
   if (!user) return;
 
   try {
-    const form = formidable({ multiples: false, keepExtensions: true });
-    const { fields, files } = await new Promise((resolve, reject) => {
-      form.parse(req, (err, fields, files) => (err ? reject(err) : resolve({ fields, files })));
-    });
+    // GET /api/auth/profile
+    if (parts.length === 1 && parts[0] === 'profile' && req.method === 'GET') {
+      const userDoc = await db.collection('users').doc(user.uid).get();
+      if (!userDoc.exists) return res.status(404).json({ message: 'User document not found' });
 
-    const file = files.licenseImage;
-    if (!file) return res.status(400).json({ message: 'No file uploaded' });
+      const data = userDoc.data();
+      return res.status(200).json({
+        email: data.email,
+        role: data.role || 'Driver',
+        licenseImageUrl: data.licenseImageUrl || null
+      });
+    }
 
-    const upload = await cloudinary.uploader.upload(file.filepath, {
-      folder: `licenses/${user.uid}`
-    });
+    // POST /api/auth/upload-license
+    if (parts.length === 1 && parts[0] === 'upload-license' && req.method === 'POST') {
+      const form = formidable({ multiples: false, keepExtensions: true });
+      const { files } = await new Promise((resolve, reject) => {
+        form.parse(req, (err, fields, files) => (err ? reject(err) : resolve({ fields, files })));
+      });
 
-    const imageUrl = upload.secure_url;
+      const file = files.licenseImage;
+      if (!file) return res.status(400).json({ message: 'No file uploaded' });
 
-    const ref = db.collection('users').doc(user.uid);
-    const snap = await ref.get();
-    if (!snap.exists) return res.status(404).json({ message: 'User document not found' });
+      const upload = await cloudinary.uploader.upload(file.filepath, {
+        folder: `licenses/${user.uid}`
+      });
 
-    await ref.update({ licenseImageUrl: imageUrl });
-    res.status(200).json({ message: 'License image uploaded successfully', imageUrl });
+      const imageUrl = upload.secure_url;
+
+      const ref = db.collection('users').doc(user.uid);
+      const snap = await ref.get();
+      if (!snap.exists) return res.status(404).json({ message: 'User document not found' });
+
+      await ref.update({ licenseImageUrl: imageUrl });
+      return res.status(200).json({ message: 'License image uploaded successfully', imageUrl });
+    }
+
+    return res.status(404).json({ message: 'Not found' });
   } catch (e) {
-    console.error('upload-license error:', e);
-    res.status(500).json({ message: 'Image upload failed', error: e.message });
+    console.error('auth catch-all error:', e);
+    return res.status(500).json({ message: 'Server error', error: e.message });
   }
 };
 --- CONTENT END ---
@@ -91,386 +79,267 @@ module.exports = (req, res) => {
 === FILE END ===
 
 === FILE START ===
-Path: api\reservation\reservation\[resId].js
+Path: api\reservation\[...path].js
 --- CONTENT START ---
-// api/reservation/reservation/[resId].js
-const { db } = require('../../_lib/firebaseAdmin');
-const { verifyAuth } = require('../../_lib/verifyAuth');
-
-module.exports = async (req, res) => {
-  const { resId } = req.query;
-  const method = req.method;
-
-  const user = await verifyAuth(req, res);
-  if (!user) return;
-
-  try {
-    if (method === 'GET') {
-      const ref = db.collection('reservation').doc(resId);
-      const doc = await ref.get();
-      if (!doc.exists) return res.status(404).json({ message: 'Reservation not found' });
-      return res.status(200).json({ id: doc.id, ...doc.data() });
-    }
-
-    if (method === 'DELETE') {
-      const snap = await db.collection('reservation').where('reservationId', '==', resId).get();
-      if (snap.empty) return res.status(404).json({ message: 'No reservation found with the specified ID' });
-      const batch = db.batch();
-      snap.forEach(d => batch.delete(d.ref));
-      await batch.commit();
-      return res.status(200).json({ message: `Reservation with id '${resId}' successfully deleted` });
-    }
-
-    return res.status(405).json({ message: 'Method not allowed' });
-  } catch (e) {
-    console.error('reservation [id] error:', e);
-    res.status(500).json({ message: 'Error handling reservation', error: e.message });
-  }
-};
---- CONTENT END ---
-=== FILE END ===
-
-=== FILE START ===
-Path: api\reservation\reservation.js
---- CONTENT START ---
-// api/reservation/reservation.js
+// api/reservation/[...path].js
 const { db } = require('../_lib/firebaseAdmin');
 const { verifyAuth } = require('../_lib/verifyAuth');
 
 module.exports = async (req, res) => {
-  if (req.method !== 'GET') return res.status(405).json({ message: 'Method not allowed' });
+  const seg = req.query.path;
+  const parts = Array.isArray(seg) ? seg : (seg ? [seg] : []);
 
   const user = await verifyAuth(req, res);
   if (!user) return;
 
   try {
-    const snap = await db.collection('reservation').get();
-    const list = snap.docs.map(d => d.data());
-    res.status(200).json(list);
-  } catch (e) {
-    console.error('get reservations error:', e);
-    res.status(500).json({ message: 'Error fetching reservations', error: e.message });
-  }
-};
---- CONTENT END ---
-=== FILE END ===
+    // GET /api/reservation/reservation
+    if (parts.length === 1 && parts[0] === 'reservation' && req.method === 'GET') {
+      const snap = await db.collection('reservation').get();
+      const list = snap.docs.map(d => d.data());
+      return res.status(200).json(list);
+    }
 
-=== FILE START ===
-Path: api\vehicle\admin-reservations.js
---- CONTENT START ---
-// api/vehicle/admin-reservations.js
-const { db } = require('../_lib/firebaseAdmin');
-const { verifyAuth } = require('../_lib/verifyAuth');
+    // GET or DELETE /api/reservation/reservation/:resId
+    if (parts.length === 2 && parts[0] === 'reservation') {
+      const resId = parts[1];
 
-module.exports = async (req, res) => {
-  if (req.method !== 'GET') return res.status(405).json({ message: 'Method not allowed' });
-
-  const user = await verifyAuth(req, res);
-  if (!user) return;
-  if (user.role !== 'Admin') return res.status(403).json({ message: 'Unauthorized access. Only admins can view reservations.' });
-
-  try {
-    const snap = await db.collection('reservation').get();
-    const out = [];
-    for (const doc of snap.docs) {
-      const r = doc.data();
-      let vehicle = null;
-      if (r.vehicleId) {
-        const v = await db.collection('vehicles').doc(r.vehicleId).get();
-        vehicle = v.exists ? v.data() : null;
+      if (req.method === 'GET') {
+        const ref = db.collection('reservation').doc(resId);
+        const doc = await ref.get();
+        if (!doc.exists) return res.status(404).json({ message: 'Reservation not found' });
+        return res.status(200).json({ id: doc.id, ...doc.data() });
       }
-      let userData = null;
-      if (r.userId) {
-        const u = await db.collection('users').doc(r.userId).get();
-        userData = u.exists ? u.data() : null;
+
+      if (req.method === 'DELETE') {
+        const snap = await db.collection('reservation').where('reservationId', '==', resId).get();
+        if (snap.empty) return res.status(404).json({ message: 'No reservation found with the specified ID' });
+        const batch = db.batch();
+        snap.forEach(d => batch.delete(d.ref));
+        await batch.commit();
+        return res.status(200).json({ message: `Reservation with id '${resId}' successfully deleted` });
       }
-      out.push({
-        reservationId: r.reservationId,
-        startDate: r.startDate,
-        endDate: r.endDate,
-        status: r.status,
-        user: userData ? { email: userData.email || 'N/A', licenseImageUrl: userData.licenseImageUrl || null } : { email: 'N/A', licenseImageUrl: null },
-        vehicle: vehicle ? { vehicleName: vehicle.vehicleName || 'N/A', color: vehicle.color || 'N/A', engine: vehicle.engine || 'N/A' } : { vehicleName: 'N/A', color: 'N/A', engine: 'N/A' }
-      });
+
+      return res.status(405).json({ message: 'Method not allowed' });
     }
-    res.status(200).json({ success: true, data: out });
+
+    return res.status(404).json({ message: 'Not found' });
   } catch (e) {
-    console.error('admin-reservations error:', e);
-    res.status(500).json({ success: false, message: 'Error fetching reservations.', error: e.message });
+    console.error('reservation catch-all error:', e);
+    return res.status(500).json({ message: 'Server error', error: e.message });
   }
 };
 --- CONTENT END ---
 === FILE END ===
 
 === FILE START ===
-Path: api\vehicle\malfunctions.js
+Path: api\vehicle\[...path].js
 --- CONTENT START ---
-// api/vehicle/malfunctions.js
+// api/vehicle/[...path].js
 const { db } = require('../_lib/firebaseAdmin');
 const { verifyAuth } = require('../_lib/verifyAuth');
 
 module.exports = async (req, res) => {
-  if (req.method !== 'GET') return res.status(405).json({ message: 'Method not allowed' });
+  // path segments after /api/vehicle/
+  const seg = req.query.path;
+  const parts = Array.isArray(seg) ? seg : (seg ? [seg] : []);
 
   const user = await verifyAuth(req, res);
   if (!user) return;
 
   try {
-    const snap = await db.collection('malfunctions').get();
-    const list = snap.docs.map(d => ({ id: d.id, ...d.data() }));
-    res.status(200).json(list);
-  } catch (e) {
-    console.error('get malfunctions error:', e);
-    res.status(500).json({ message: 'Error fetching malfunction data.', error: e.message });
-  }
-};
---- CONTENT END ---
-=== FILE END ===
-
-=== FILE START ===
-Path: api\vehicle\vehicles\[vehicleId]\repair.js
---- CONTENT START ---
-// api/vehicle/vehicles/[vehicleId]/repair.js
-const { db } = require('../../../_lib/firebaseAdmin');
-const { verifyAuth } = require('../../../_lib/verifyAuth');
-
-module.exports = async (req, res) => {
-  if (req.method !== 'PATCH') return res.status(405).json({ message: 'Method not allowed' });
-
-  const { vehicleId } = req.query;
-  const user = await verifyAuth(req, res);
-  if (!user) return;
-
-  try {
-    const ref = db.collection('vehicles').doc(vehicleId);
-    const snap = await ref.get();
-    if (!snap.exists) return res.status(404).json({ message: 'Vehicle not found' });
-
-    const data = snap.data();
-    if (data.status !== 'repair') return res.status(400).json({ message: 'Cannot change status, vehicle is not in repair.' });
-
-    await ref.update({ status: 'available' });
-
-    // Remove malfunctions
-    const m = await db.collection('malfunctions').where('vehicleId', '==', vehicleId).get();
-    if (!m.empty) {
-      const batch = db.batch();
-      m.forEach(doc => batch.delete(doc.ref));
-      await batch.commit();
+    // GET /api/vehicle/vehicles
+    if (parts.length === 1 && parts[0] === 'vehicles' && req.method === 'GET') {
+      const snapshot = await db.collection('vehicles').get();
+      const list = snapshot.docs.map(d => d.data());
+      return res.status(200).json(list);
     }
 
-    res.status(200).json({ message: `Vehicle ${vehicleId} status updated to "available" and malfunction(s) deleted.` });
-  } catch (e) {
-    console.error('repair error:', e);
-    res.status(500).json({ message: 'Error updating vehicle status', error: e.message });
-  }
-};
---- CONTENT END ---
-=== FILE END ===
+    // GET or DELETE /api/vehicle/vehicles/:vehicleId
+    if (parts.length === 2 && parts[0] === 'vehicles') {
+      const vehicleId = parts[1];
 
-=== FILE START ===
-Path: api\vehicle\vehicles\[vehicleId]\report-issue.js
---- CONTENT START ---
-// api/vehicle/vehicles/[vehicleId]/report-issue.js
-const { db } = require('../../../_lib/firebaseAdmin');
-const { verifyAuth } = require('../../../_lib/verifyAuth');
+      if (req.method === 'GET') {
+        const ref = db.collection('vehicles').doc(vehicleId);
+        const doc = await ref.get();
+        if (!doc.exists) return res.status(404).json({ message: 'Vehicle not found' });
+        return res.status(200).json({ id: doc.id, ...doc.data() });
+      }
 
-module.exports = async (req, res) => {
-  if (req.method !== 'POST') return res.status(405).json({ message: 'Method not allowed' });
+      if (req.method === 'DELETE') {
+        if (user.role !== 'Admin') {
+          return res.status(403).json({ message: 'Only admins can delete vehicles.' });
+        }
+        const q = await db.collection('vehicles').where('vehicleId', '==', vehicleId).get();
+        if (q.empty) return res.status(404).json({ message: 'No vehicle found with the specified ID' });
+        const batch = db.batch();
+        q.forEach(doc => batch.delete(doc.ref));
+        await batch.commit();
+        return res.status(200).json({ message: `Vehicle(s) with id '${vehicleId}' successfully deleted` });
+      }
 
-  const { vehicleId } = req.query;
-  const user = await verifyAuth(req, res);
-  if (!user) return;
-
-  const { description } = req.body || {};
-  if (!description) return res.status(400).json({ message: 'Description is required.' });
-
-  try {
-    const vRef = db.collection('vehicles').doc(vehicleId);
-    const vDoc = await vRef.get();
-    if (!vDoc.exists) return res.status(404).json({ message: 'Vehicle not found.' });
-
-    // Log malfunction
-    await db.collection('malfunctions').doc().set({
-      vehicleId,
-      userId: user.uid,
-      description,
-      status: 'Pending',
-      createdAt: new Date()
-    });
-
-    // set vehicle to repair
-    await vRef.update({ status: 'repair' });
-
-    // delete active reservations for this vehicle
-    const rQ = await db.collection('reservation')
-      .where('vehicleId', '==', vehicleId)
-      .where('status', '==', 'Active')
-      .get();
-
-    if (!rQ.empty) {
-      const batch = db.batch();
-      rQ.forEach(doc => batch.delete(doc.ref));
-      await batch.commit();
+      return res.status(405).json({ message: 'Method not allowed' });
     }
 
-    res.status(201).json({ message: `Issue reported for vehicle ${vehicleId}, status updated to "repair", and associated reservation deleted.` });
-  } catch (e) {
-    console.error('report-issue error:', e);
-    res.status(500).json({ message: 'Error reporting vehicle issue.', error: e.message });
-  }
-};
+    // PATCH actions on /api/vehicle/vehicles/:vehicleId/(reserve|unreserve|repair)
+    if (parts.length === 3 && parts[0] === 'vehicles') {
+      const vehicleId = parts[1];
+      const action = parts[2];
 
---- CONTENT END ---
-=== FILE END ===
+      // PATCH /repair
+      if (action === 'repair' && req.method === 'PATCH') {
+        const ref = db.collection('vehicles').doc(vehicleId);
+        const snap = await ref.get();
+        if (!snap.exists) return res.status(404).json({ message: 'Vehicle not found' });
 
-=== FILE START ===
-Path: api\vehicle\vehicles\[vehicleId]\reserve.js
---- CONTENT START ---
-// api/vehicle/vehicles/[vehicleId]/reserve.js
-const { db } = require('../../../_lib/firebaseAdmin');
-const { verifyAuth } = require('../../../_lib/verifyAuth');
+        const data = snap.data();
+        if (data.status !== 'repair') {
+          return res.status(400).json({ message: 'Cannot change status, vehicle is not in repair.' });
+        }
 
-module.exports = async (req, res) => {
-  if (req.method !== 'PATCH') return res.status(405).json({ message: 'Method not allowed' });
+        await ref.update({ status: 'available' });
 
-  const { vehicleId } = req.query;
-  const user = await verifyAuth(req, res);
-  if (!user) return;
+        // remove malfunctions for this vehicle
+        const m = await db.collection('malfunctions').where('vehicleId', '==', vehicleId).get();
+        if (!m.empty) {
+          const batch = db.batch();
+          m.forEach(doc => batch.delete(doc.ref));
+          await batch.commit();
+        }
 
-  const { startDate, endDate } = req.body || {};
-  if (!startDate || !endDate) return res.status(400).json({ success: false, message: 'Start date and end date are required.' });
+        return res.status(200).json({ message: `Vehicle ${vehicleId} status updated to "available" and malfunction(s) deleted.` });
+      }
 
-  try {
-    const vRef = db.collection('vehicles').doc(vehicleId);
-    const vDoc = await vRef.get();
-    if (!vDoc.exists) return res.status(404).json({ success: false, message: 'Vehicle not found.' });
+      // PATCH /unreserve
+      if (action === 'unreserve' && req.method === 'PATCH') {
+        const ref = db.collection('vehicles').doc(vehicleId);
+        const snap = await ref.get();
+        if (!snap.exists) return res.status(404).json({ message: 'Vehicle not found' });
 
-    const v = vDoc.data();
-    if (v.status !== 'available') return res.status(400).json({ success: false, message: 'Vehicle is not available for reservation.' });
+        const data = snap.data();
+        if (data.status === 'available' || data.status === 'repair') {
+          return res.status(400).json({ message: 'Cannot change status, vehicle is not reserved.' });
+        }
 
-    const resRef = db.collection('reservation').doc();
-    const reservationId = resRef.id;
+        await ref.update({ status: 'available' });
+        return res.status(200).json({ message: `Vehicle ${vehicleId} status updated to "available".` });
+      }
 
-    await resRef.set({
-      reservationId,
-      vehicleId,
-      userId: user.uid,
-      startDate,
-      endDate,
-      status: 'Active',
-      createdAt: new Date()
-    });
+      // PATCH /reserve
+      if (action === 'reserve' && req.method === 'PATCH') {
+        const { startDate, endDate } = req.body || {};
+        if (!startDate || !endDate) {
+          return res.status(400).json({ success: false, message: 'Start date and end date are required.' });
+        }
 
-    await vRef.update({ status: reservationId });
+        const vRef = db.collection('vehicles').doc(vehicleId);
+        const vDoc = await vRef.get();
+        if (!vDoc.exists) return res.status(404).json({ success: false, message: 'Vehicle not found.' });
 
-    res.status(201).json({ success: true, message: 'Reservation created successfully.' });
-  } catch (e) {
-    console.error('reserve error:', e);
-    res.status(500).json({ success: false, message: 'Error creating reservation.', error: e.message });
-  }
-};
---- CONTENT END ---
-=== FILE END ===
+        const v = vDoc.data();
+        if (v.status !== 'available') {
+          return res.status(400).json({ success: false, message: 'Vehicle is not available for reservation.' });
+        }
 
-=== FILE START ===
-Path: api\vehicle\vehicles\[vehicleId]\unreserve.js
---- CONTENT START ---
-// api/vehicle/vehicles/[vehicleId]/unreserve.js
-const { db } = require('../../../_lib/firebaseAdmin');
-const { verifyAuth } = require('../../../_lib/verifyAuth');
+        const resRef = db.collection('reservation').doc();
+        const reservationId = resRef.id;
 
-module.exports = async (req, res) => {
-  if (req.method !== 'PATCH') return res.status(405).json({ message: 'Method not allowed' });
+        await resRef.set({
+          reservationId,
+          vehicleId,
+          userId: user.uid,
+          startDate,
+          endDate,
+          status: 'Active',
+          createdAt: new Date()
+        });
 
-  const { vehicleId } = req.query;
-  const user = await verifyAuth(req, res);
-  if (!user) return;
+        await vRef.update({ status: reservationId });
 
-  try {
-    const ref = db.collection('vehicles').doc(vehicleId);
-    const snap = await ref.get();
-    if (!snap.exists) return res.status(404).json({ message: 'Vehicle not found' });
+        return res.status(201).json({ success: true, message: 'Reservation created successfully.' });
+      }
 
-    const data = snap.data();
-    if (data.status === 'available' || data.status === 'repair') {
-      return res.status(400).json({ message: 'Cannot change status, vehicle is not reserved.' });
+      // POST /report-issue
+      if (action === 'report-issue' && req.method === 'POST') {
+        const { description } = req.body || {};
+        if (!description) return res.status(400).json({ message: 'Description is required.' });
+
+        const vRef = db.collection('vehicles').doc(vehicleId);
+        const vDoc = await vRef.get();
+        if (!vDoc.exists) return res.status(404).json({ message: 'Vehicle not found.' });
+
+        // log malfunction
+        await db.collection('malfunctions').doc().set({
+          vehicleId,
+          userId: user.uid,
+          description,
+          status: 'Pending',
+          createdAt: new Date()
+        });
+
+        // set vehicle to repair
+        await vRef.update({ status: 'repair' });
+
+        // delete active reservations for this vehicle
+        const rQ = await db.collection('reservation')
+          .where('vehicleId', '==', vehicleId)
+          .where('status', '==', 'Active')
+          .get();
+
+        if (!rQ.empty) {
+          const batch = db.batch();
+          rQ.forEach(doc => batch.delete(doc.ref));
+          await batch.commit();
+        }
+
+        return res.status(201).json({ message: `Issue reported for vehicle ${vehicleId}, status updated to "repair", and associated reservation deleted.` });
+      }
+
+      return res.status(405).json({ message: 'Method not allowed' });
     }
 
-    await ref.update({ status: 'available' });
-    res.status(200).json({ message: `Vehicle ${vehicleId} status updated to "available".` });
-  } catch (e) {
-    console.error('unreserve error:', e);
-    res.status(500).json({ message: 'Error updating vehicle status', error: e.message });
-  }
-};
---- CONTENT END ---
-=== FILE END ===
-
-=== FILE START ===
-Path: api\vehicle\vehicles\[vehicleId].js
---- CONTENT START ---
-// api/vehicle/vehicles/[vehicleId].js
-const { db } = require('../../_lib/firebaseAdmin');
-const { verifyAuth } = require('../../_lib/verifyAuth');
-
-module.exports = async (req, res) => {
-  const { vehicleId } = req.query;
-  const method = req.method;
-
-  const user = await verifyAuth(req, res);
-  if (!user) return;
-
-  try {
-    if (method === 'GET') {
-      const ref = db.collection('vehicles').doc(vehicleId);
-      const doc = await ref.get();
-      if (!doc.exists) return res.status(404).json({ message: 'Vehicle not found' });
-      return res.status(200).json({ id: doc.id, ...doc.data() });
+    // GET /api/vehicle/malfunctions
+    if (parts.length === 1 && parts[0] === 'malfunctions' && req.method === 'GET') {
+      const snap = await db.collection('malfunctions').get();
+      const list = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+      return res.status(200).json(list);
     }
 
-    if (method === 'DELETE') {
-      // Only Admin can delete
-      if (user.role !== 'Admin') return res.status(403).json({ message: 'Only admins can delete vehicles.' });
-
-      const q = await db.collection('vehicles').where('vehicleId', '==', vehicleId).get();
-      if (q.empty) return res.status(404).json({ message: 'No vehicle found with the specified ID' });
-
-      const batch = db.batch();
-      q.forEach(doc => batch.delete(doc.ref));
-      await batch.commit();
-      return res.status(200).json({ message: `Vehicle(s) with id '${vehicleId}' successfully deleted` });
+    // GET /api/vehicle/admin-reservations (Admin only)
+    if (parts.length === 1 && parts[0] === 'admin-reservations' && req.method === 'GET') {
+      if (user.role !== 'Admin') {
+        return res.status(403).json({ message: 'Unauthorized access. Only admins can view reservations.' });
+      }
+      const snap = await db.collection('reservation').get();
+      const out = [];
+      for (const doc of snap.docs) {
+        const r = doc.data();
+        let vehicle = null;
+        if (r.vehicleId) {
+          const v = await db.collection('vehicles').doc(r.vehicleId).get();
+          vehicle = v.exists ? v.data() : null;
+        }
+        let userData = null;
+        if (r.userId) {
+          const u = await db.collection('users').doc(r.userId).get();
+          userData = u.exists ? u.data() : null;
+        }
+        out.push({
+          reservationId: r.reservationId,
+          startDate: r.startDate,
+          endDate: r.endDate,
+          status: r.status,
+          user: userData ? { email: userData.email || 'N/A', licenseImageUrl: userData.licenseImageUrl || null } : { email: 'N/A', licenseImageUrl: null },
+          vehicle: vehicle ? { vehicleName: vehicle.vehicleName || 'N/A', color: vehicle.color || 'N/A', engine: vehicle.engine || 'N/A' } : { vehicleName: 'N/A', color: 'N/A', engine: 'N/A' }
+        });
+      }
+      return res.status(200).json({ success: true, data: out });
     }
 
-    return res.status(405).json({ message: 'Method not allowed' });
+    return res.status(404).json({ message: 'Not found' });
   } catch (e) {
-    console.error('vehicle [id] error:', e);
-    res.status(500).json({ message: 'Error handling vehicle', error: e.message });
-  }
-};
---- CONTENT END ---
-=== FILE END ===
-
-=== FILE START ===
-Path: api\vehicle\vehicles.js
---- CONTENT START ---
-// api/vehicle/vehicles.js
-const { db } = require('../_lib/firebaseAdmin');
-const { verifyAuth } = require('../_lib/verifyAuth');
-
-module.exports = async (req, res) => {
-  if (req.method !== 'GET') return res.status(405).json({ message: 'Method not allowed' });
-
-  const user = await verifyAuth(req, res);
-  if (!user) return;
-
-  try {
-    const snapshot = await db.collection('vehicles').get();
-    const list = snapshot.docs.map(d => d.data());
-    res.status(200).json(list);
-  } catch (e) {
-    console.error('get vehicles error:', e);
-    res.status(500).json({ message: 'Error fetching vehicles', error: e.message });
+    console.error('vehicle catch-all error:', e);
+    return res.status(500).json({ message: 'Server error', error: e.message });
   }
 };
 --- CONTENT END ---
@@ -574,6 +443,457 @@ async function verifyAuth(req, res) {
 }
 
 module.exports = { verifyAuth };
+--- CONTENT END ---
+=== FILE END ===
+
+=== FILE START ===
+Path: api\__tests__\auth.test.js
+--- CONTENT START ---
+const path = require('path');
+const httpMocks = require('node-mocks-http');
+const { createMockDb } = require('./helpers/mockDb');
+
+const authHandlerPath = path.resolve(__dirname, '..', 'auth', '[...path].js');
+const verifyAuthPath = path.resolve(__dirname, '..', '_lib', 'verifyAuth.js');
+const firebaseAdminPath = path.resolve(__dirname, '..', '_lib', 'firebaseAdmin.js');
+
+describe('Auth API', () => {
+  let handler;
+  let mockDb;
+
+  beforeEach(() => {
+    jest.resetModules();
+    mockDb = createMockDb({
+      users: {
+        // seed user doc without explicit role (defaults to Driver)
+        u1: { email: 'admin@example.com' }
+      }
+    });
+
+    jest.doMock(verifyAuthPath, () => ({
+      verifyAuth: jest.fn().mockResolvedValue({ uid: 'u1', role: 'Admin' })
+    }));
+    jest.doMock(firebaseAdminPath, () => ({ db: mockDb }));
+
+    handler = require(authHandlerPath);
+  });
+
+  test('GET /api/auth/profile returns email and default role', async () => {
+    const req = httpMocks.createRequest({
+      method: 'GET',
+      url: '/api/auth/profile',
+      query: { path: ['profile'] },
+      headers: { authorization: 'Bearer x' }
+    });
+    const res = httpMocks.createResponse();
+
+    await handler(req, res);
+
+    expect(res._getStatusCode()).toBe(200);
+    const body = res._getJSONData();
+    expect(body.email).toBe('admin@example.com');
+    expect(body.role).toBe('Driver'); // default when not set
+  });
+
+  test('GET /api/auth/profile 404 when user doc missing', async () => {
+    // reset with no user doc
+    jest.resetModules();
+    mockDb = createMockDb({ users: {} });
+    jest.doMock(verifyAuthPath, () => ({
+      verifyAuth: jest.fn().mockResolvedValue({ uid: 'missing', role: 'Admin' })
+    }));
+    jest.doMock(firebaseAdminPath, () => ({ db: mockDb }));
+    handler = require(authHandlerPath);
+
+    const req = httpMocks.createRequest({
+      method: 'GET',
+      url: '/api/auth/profile',
+      query: { path: ['profile'] },
+      headers: { authorization: 'Bearer x' }
+    });
+    const res = httpMocks.createResponse();
+
+    await handler(req, res);
+
+    expect(res._getStatusCode()).toBe(404);
+  });
+});
+--- CONTENT END ---
+=== FILE END ===
+
+=== FILE START ===
+Path: api\__tests__\helpers\mockDb.js
+--- CONTENT START ---
+// api/__tests__/helpers/mockDb.js
+let autoId = 0;
+const genId = () => `auto_${++autoId}`;
+
+function makeSnapshotFromMap(map) {
+  const docs = Array.from(map.entries()).map(([id, data]) => ({
+    id,
+    data: () => data,
+    ref: { id }
+  }));
+  return { docs };
+}
+
+function createCollection(initial = {}) {
+  const store = new Map(Object.entries(initial)); // id -> data
+
+  const col = {
+    _name: null,
+    _filters: [],
+    doc(id) {
+      const _id = id || genId();
+      return {
+        id: _id,
+        async get() {
+          const exists = store.has(_id);
+          return { id: _id, exists, data: () => (exists ? store.get(_id) : undefined) };
+        },
+        async set(data) {
+          store.set(_id, { ...(data || {}) });
+        },
+        async update(patch) {
+          if (!store.has(_id)) throw new Error('not-found');
+          store.set(_id, { ...store.get(_id), ...(patch || {}) });
+        },
+        async delete() {
+          store.delete(_id);
+        },
+        get ref() {
+          return { id: _id, _collection: col };
+        }
+      };
+    },
+    where(field, op, value) {
+      const next = createCollection();
+      next._name = this._name;
+      next._filters = [...this._filters, { field, op, value }];
+      next._getData = () => store; // keep reference
+      next._allFilters = () => next._filters;
+      next.get = async () => {
+        const filtered = Array.from(store.entries()).filter(([, data]) =>
+          next._filters.every(f => f.op === '==' ? data[f.field] === f.value : false)
+        );
+        const docs = filtered.map(([id, data]) => ({ id, data: () => data, ref: { id } }));
+        return { docs, empty: docs.length === 0, forEach: cb => docs.forEach(d => cb(d)) };
+      };
+      return next;
+    },
+    async get() {
+      const snapshot = makeSnapshotFromMap(store);
+      return {
+        ...snapshot,
+        empty: snapshot.docs.length === 0,
+        forEach: cb => snapshot.docs.forEach(cb)
+      };
+    }
+  };
+  return col;
+}
+
+function createMockDb(seed = {}) {
+  const collections = {};
+  const ensure = (name) => {
+    if (!collections[name]) {
+      collections[name] = createCollection(seed[name] || {});
+      collections[name]._name = name;
+    }
+    return collections[name];
+  };
+
+  return {
+    collection(name) {
+      return ensure(name);
+    },
+    batch() {
+      const ops = [];
+      return {
+        delete(ref) {
+          ops.push({ type: 'delete', ref });
+        },
+        async commit() {
+          for (const op of ops) {
+            if (op.type === 'delete') {
+              const c = ensure(op.ref._collection?._name || op.ref.collectionName || nameFromRef(op.ref));
+              // try both styles
+              if (op.ref._collection) {
+                const store = op.ref._collection._getData ? op.ref._collection._getData() : null;
+                if (store) store.delete(op.ref.id);
+              } else {
+                // fallback: find by id in the collection map
+                const snap = await c.get();
+                const match = snap.docs.find(d => d.id === op.ref.id);
+                if (match) {
+                  const map = c._getData ? c._getData() : null;
+                  if (map) map.delete(op.ref.id);
+                }
+              }
+            }
+          }
+        }
+      };
+    }
+  };
+}
+
+function nameFromRef(ref) {
+  // best-effort helper if needed
+  return ref && ref.collectionName ? ref.collectionName : '';
+}
+
+module.exports = { createMockDb };
+--- CONTENT END ---
+=== FILE END ===
+
+=== FILE START ===
+Path: api\__tests__\reservation.test.js
+--- CONTENT START ---
+const path = require('path');
+const httpMocks = require('node-mocks-http');
+const { createMockDb } = require('./helpers/mockDb');
+
+const reservationHandlerPath = path.resolve(__dirname, '..', 'reservation', '[...path].js');
+const verifyAuthPath = path.resolve(__dirname, '..', '_lib', 'verifyAuth.js');
+const firebaseAdminPath = path.resolve(__dirname, '..', '_lib', 'firebaseAdmin.js');
+
+describe('Reservation API', () => {
+  let handler;
+  let mockDb;
+
+  beforeEach(() => {
+    jest.resetModules();
+    mockDb = createMockDb({
+      reservation: {
+        r1: { reservationId: 'r1', vehicleId: 'veh1', userId: 'u1', status: 'Active' },
+        r2: { reservationId: 'r2', vehicleId: 'veh2', userId: 'u2', status: 'Cancelled' }
+      }
+    });
+
+    jest.doMock(verifyAuthPath, () => ({
+      verifyAuth: jest.fn().mockResolvedValue({ uid: 'u1', role: 'Admin' })
+    }));
+    jest.doMock(firebaseAdminPath, () => ({ db: mockDb }));
+
+    handler = require(reservationHandlerPath);
+  });
+
+  test('GET /api/reservation/reservation returns all reservations', async () => {
+    const req = httpMocks.createRequest({
+      method: 'GET',
+      url: '/api/reservation/reservation',
+      query: { path: ['reservation'] },
+      headers: { authorization: 'Bearer x' }
+    });
+    const res = httpMocks.createResponse();
+
+    await handler(req, res);
+    expect(res._getStatusCode()).toBe(200);
+    const body = res._getJSONData();
+    expect(Array.isArray(body)).toBe(true);
+    expect(body.length).toBe(2);
+  });
+
+  test('DELETE /api/reservation/reservation/:id deletes by reservationId', async () => {
+    const req = httpMocks.createRequest({
+      method: 'DELETE',
+      url: '/api/reservation/reservation/r1',
+      query: { path: ['reservation', 'r1'] },
+      headers: { authorization: 'Bearer x' }
+    });
+    const res = httpMocks.createResponse();
+
+    await handler(req, res);
+    expect(res._getStatusCode()).toBe(200);
+
+    const remaining = (await mockDb.collection('reservation').get()).docs.map(d => d.data());
+    expect(remaining.length).toBe(1);
+    expect(remaining[0].reservationId).toBe('r2');
+  });
+});
+--- CONTENT END ---
+=== FILE END ===
+
+=== FILE START ===
+Path: api\__tests__\vehicle.test.js
+--- CONTENT START ---
+const path = require('path');
+const httpMocks = require('node-mocks-http');
+const { createMockDb } = require('./helpers/mockDb');
+
+const vehicleHandlerPath = path.resolve(__dirname, '..', 'vehicle', '[...path].js');
+const verifyAuthPath = path.resolve(__dirname, '..', '_lib', 'verifyAuth.js');
+const firebaseAdminPath = path.resolve(__dirname, '..', '_lib', 'firebaseAdmin.js');
+
+describe('Vehicle API', () => {
+  let handler;
+  let mockDb;
+
+  const seed = () => ({
+    users: {
+      u1: { email: 'admin@example.com', role: 'Admin' }
+    },
+    vehicles: {
+      veh1: { vehicleId: 'veh1', vehicleName: 'Car A', engine: 'V6', hp: '200', color: 'Red', year: '2020', status: 'available' },
+      veh2: { vehicleId: 'veh2', vehicleName: 'Car B', engine: 'I4', hp: '120', color: 'Blue', year: '2019', status: 'repair' }
+    },
+    reservation: {},
+    malfunctions: {}
+  });
+
+  beforeEach(() => {
+    jest.resetModules();
+    mockDb = createMockDb(seed());
+
+    jest.doMock(verifyAuthPath, () => ({
+      verifyAuth: jest.fn().mockResolvedValue({ uid: 'u1', role: 'Admin' })
+    }));
+    jest.doMock(firebaseAdminPath, () => ({ db: mockDb }));
+
+    handler = require(vehicleHandlerPath);
+  });
+
+  test('GET /api/vehicle/vehicles returns list', async () => {
+    const req = httpMocks.createRequest({
+      method: 'GET',
+      url: '/api/vehicle/vehicles',
+      query: { path: ['vehicles'] },
+      headers: { authorization: 'Bearer x' }
+    });
+    const res = httpMocks.createResponse();
+
+    await handler(req, res);
+
+    expect(res._getStatusCode()).toBe(200);
+    const body = res._getJSONData();
+    expect(Array.isArray(body)).toBe(true);
+    expect(body.length).toBe(2);
+  });
+
+  test('PATCH /vehicles/:id/reserve succeeds when available', async () => {
+    const req = httpMocks.createRequest({
+      method: 'PATCH',
+      url: '/api/vehicle/vehicles/veh1/reserve',
+      query: { path: ['vehicles', 'veh1', 'reserve'] },
+      headers: { authorization: 'Bearer x' },
+      body: { startDate: '2025-01-01', endDate: '2025-01-03' }
+    });
+    const res = httpMocks.createResponse();
+
+    await handler(req, res);
+
+    expect(res._getStatusCode()).toBe(201);
+    // Verify vehicle status changed from "available" to reservationId (some auto id)
+    const vehSnap = await mockDb.collection('vehicles').doc('veh1').get();
+    const veh = vehSnap.data();
+    expect(veh.status).toMatch(/^auto_/);
+
+    // Verify reservation created
+    const reservations = (await mockDb.collection('reservation').get()).docs.map(d => d.data());
+    expect(reservations.length).toBe(1);
+    expect(reservations[0].vehicleId).toBe('veh1');
+  });
+
+  test('PATCH /vehicles/:id/reserve fails when not available', async () => {
+    const req = httpMocks.createRequest({
+      method: 'PATCH',
+      url: '/api/vehicle/vehicles/veh2/reserve',
+      query: { path: ['vehicles', 'veh2', 'reserve'] },
+      headers: { authorization: 'Bearer x' },
+      body: { startDate: '2025-01-01', endDate: '2025-01-03' }
+    });
+    const res = httpMocks.createResponse();
+
+    await handler(req, res);
+
+    expect(res._getStatusCode()).toBe(400);
+  });
+
+  test('PATCH /vehicles/:id/unreserve sets status to available', async () => {
+    // First, simulate reserved status
+    await mockDb.collection('vehicles').doc('veh1').update({ status: 'auto_999' });
+
+    const req = httpMocks.createRequest({
+      method: 'PATCH',
+      url: '/api/vehicle/vehicles/veh1/unreserve',
+      query: { path: ['vehicles', 'veh1', 'unreserve'] },
+      headers: { authorization: 'Bearer x' }
+    });
+    const res = httpMocks.createResponse();
+
+    await handler(req, res);
+
+    expect(res._getStatusCode()).toBe(200);
+    const veh = (await mockDb.collection('vehicles').doc('veh1').get()).data();
+    expect(veh.status).toBe('available');
+  });
+
+  test('POST /vehicles/:id/report-issue sets vehicle to repair, adds malfunction, deletes active reservations', async () => {
+    // Seed an active reservation for veh1
+    const rRef = mockDb.collection('reservation').doc('r1');
+    await rRef.set({
+      reservationId: 'r1',
+      vehicleId: 'veh1',
+      userId: 'u1',
+      status: 'Active',
+      startDate: '2025-01-01',
+      endDate: '2025-01-02'
+    });
+
+    const req = httpMocks.createRequest({
+      method: 'POST',
+      url: '/api/vehicle/vehicles/veh1/report-issue',
+      query: { path: ['vehicles', 'veh1', 'report-issue'] },
+      headers: { authorization: 'Bearer x' },
+      body: { description: 'brake noise' }
+    });
+    const res = httpMocks.createResponse();
+
+    await handler(req, res);
+    expect(res._getStatusCode()).toBe(201);
+
+    const veh = (await mockDb.collection('vehicles').doc('veh1').get()).data();
+    expect(veh.status).toBe('repair');
+
+    const mal = (await mockDb.collection('malfunctions').get()).docs.map(d => d.data());
+    expect(mal.length).toBe(1);
+    expect(mal[0].description).toBe('brake noise');
+
+    const reservations = (await mockDb.collection('reservation').get()).docs.map(d => d.data());
+    expect(reservations.length).toBe(0); // active reservation deleted
+  });
+
+  test('GET /api/vehicle/admin-reservations aggregates vehicle and user info', async () => {
+    // Seed a reservation and related docs
+    const resRef = mockDb.collection('reservation').doc('r2');
+    await resRef.set({
+      reservationId: 'r2',
+      vehicleId: 'veh1',
+      userId: 'u1',
+      startDate: '2025-02-01',
+      endDate: '2025-02-03',
+      status: 'Active'
+    });
+
+    const req = httpMocks.createRequest({
+      method: 'GET',
+      url: '/api/vehicle/admin-reservations',
+      query: { path: ['admin-reservations'] },
+      headers: { authorization: 'Bearer x' }
+    });
+    const res = httpMocks.createResponse();
+
+    await handler(req, res);
+
+    expect(res._getStatusCode()).toBe(200);
+    const body = res._getJSONData();
+    expect(body.success).toBe(true);
+    expect(Array.isArray(body.data)).toBe(true);
+    expect(body.data[0].vehicle.vehicleName).toBe('Car A');
+    expect(body.data[0].user.email).toBe('admin@example.com');
+  });
+});
 --- CONTENT END ---
 === FILE END ===
 
@@ -2578,6 +2898,138 @@ import '@testing-library/jest-dom';
 --- CONTENT END ---
 === FILE END ===
 
+=== FILE START ===
+Path: frontend\src\__tests__\CurrentReservationsAdmin.test.js
+--- CONTENT START ---
+import React from 'react';
+import { render, screen } from '@testing-library/react';
+import CurrentReservationsAdmin from '../components/CurrentReservationsAdmin';
+
+jest.mock('../services/vehicleService', () => ({
+  getAdminReservations: jest.fn(async () => ({
+    success: true,
+    data: {
+      success: true,
+      data: [
+        {
+          reservationId: 'r1',
+          startDate: '2025-01-01',
+          endDate: '2025-01-02',
+          status: 'Active',
+          user: { email: 'driver@example.com', licenseImageUrl: null },
+          vehicle: { vehicleName: 'Car A', color: 'Red', engine: 'V6' }
+        }
+      ]
+    }
+  }))
+}));
+
+test('Admin reservations table renders a row', async () => {
+  render(<CurrentReservationsAdmin token="tok" setShowAllCarReservations={() => {}} />);
+  expect(await screen.findByText(/current car reservations/i)).toBeInTheDocument();
+  expect(await screen.findByText('Car A')).toBeInTheDocument();
+  expect(screen.getByText('driver@example.com')).toBeInTheDocument();
+});
+--- CONTENT END ---
+=== FILE END ===
+
+=== FILE START ===
+Path: frontend\src\__tests__\Login.test.js
+--- CONTENT START ---
+import React from 'react';
+import { render, screen } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
+import Login from '../components/Login';
+
+// Mock firebaseClient exports used by Login
+jest.mock('../firebaseClient', () => ({
+  auth: {},
+  signInWithEmailAndPassword: jest.fn(async () => ({
+    user: {
+      getIdTokenResult: async () => ({ token: 't123', claims: { role: 'Driver' } })
+    }
+  }))
+}));
+
+test('Login submits and sets token on success', async () => {
+  const setToken = jest.fn();
+  render(<Login setToken={setToken} />);
+
+  await userEvent.type(screen.getByPlaceholderText(/email/i), 'test@example.com');
+  await userEvent.type(screen.getByPlaceholderText(/password/i), 'pass123');
+  await userEvent.click(screen.getByRole('button', { name: /login/i }));
+
+  expect(await screen.findByRole('button', { name: /login/i })).toBeInTheDocument();
+  expect(setToken).toHaveBeenCalledWith('t123');
+});
+--- CONTENT END ---
+=== FILE END ===
+
+=== FILE START ===
+Path: frontend\src\__tests__\ReserveVehicleForm.test.js
+--- CONTENT START ---
+import React from 'react';
+import { render, screen } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
+import ReserveVehicleForm from '../components/ReserveVehicleForm';
+
+jest.mock('../services/vehicleService', () => ({
+  reserveVehicle: jest.fn(async () => ({ success: true, data: {} }))
+}));
+
+// Mock firebase/auth getAuth -> currentUser.uid
+jest.mock('firebase/auth', () => ({
+  getAuth: () => ({ currentUser: { uid: 'u1' } })
+}));
+
+test('ReserveVehicleForm submits and calls fetchVehicles', async () => {
+  const fetchVehicles = jest.fn();
+  render(
+    <ReserveVehicleForm
+      token="tok"
+      reserveVehicleId="veh1"
+      setReserveVehicleId={() => {}}
+      fetchVehicles={fetchVehicles}
+    />
+  );
+
+  // Just click submit; default endDate is set
+  await userEvent.click(screen.getByRole('button', { name: /reserve/i }));
+  // allow async
+  await new Promise(r => setTimeout(r, 0));
+  expect(fetchVehicles).toHaveBeenCalled();
+});
+--- CONTENT END ---
+=== FILE END ===
+
+=== FILE START ===
+Path: frontend\src\__tests__\UploadLicense.test.js
+--- CONTENT START ---
+import React from 'react';
+import { render, screen, waitFor } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
+import UploadLicense from '../components/UploadLicense';
+
+jest.mock('../services/authService', () => ({
+  uploadLicense: jest.fn(async () => ({ success: true, message: 'License image uploaded successfully' }))
+}));
+
+test('UploadLicense calls service and shows success', async () => {
+  render(<UploadLicense token="tok" />);
+
+  const file = new File(['dummy'], 'license.png', { type: 'image/png' });
+  const input = screen.getByLabelText(/upload driver's license/i) || screen.getByRole('textbox', { hidden: true }) || screen.getByRole('button', { name: /upload/i });
+
+  // safer: query by input type=file
+  const fileInput = screen.getByLabelText(/upload/i) || document.querySelector('input[type="file"]');
+  await userEvent.upload(fileInput, file);
+
+  await userEvent.click(screen.getByRole('button', { name: /upload/i }));
+  await waitFor(() => expect(screen.getByText(/uploaded successfully/i)).toBeTruthy());
+});
+--- CONTENT END ---
+=== FILE END ===
+
 ====================
 OPTIONAL ROOT FILES
 ====================
@@ -2655,13 +3107,27 @@ Path: firestore.indexes.json
 === FILE END ===
 
 === FILE START ===
-Path: package-lock.json
+Path: package.json
 --- CONTENT START ---
 {
-  "name": "RIRS",
-  "lockfileVersion": 3,
-  "requires": true,
-  "packages": {}
+  "name": "vehicle-management",
+  "private": true,
+  "engines": { "node": ">=18" },
+  "workspaces": ["frontend"],
+  "dependencies": {
+    "cloudinary": "^2.5.1",
+    "firebase-admin": "^12.7.0",
+    "formidable": "^3.5.0"
+  },
+    "scripts": {
+    "test": "jest",
+    "test:api": "jest",
+    "test:frontend": "npm --prefix frontend test -- --watchAll=false"
+  },
+    "devDependencies": {
+    "jest": "^29.7.0",
+    "node-mocks-http": "^1.11.0"
+  }
 }
 --- CONTENT END ---
 === FILE END ===
