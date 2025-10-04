@@ -1,4 +1,4 @@
-Output generated at: 2025-10-04T10:45:56.273Z
+Output generated at: 2025-10-04T11:02:52.979Z
 Project root: C:\aaFERI\PREDMETI\3. Semestar\VUI\App\RIRSsolo
 
 ====================
@@ -525,24 +525,52 @@ describe('Auth API', () => {
 Path: api\__tests__\helpers\mockDb.js
 --- CONTENT START ---
 // api/__tests__/helpers/mockDb.js
+
+// Very small Firestore-in-memory mock that supports the subset of features
+// your handlers/tests use: collection().doc().{get,set,update,delete},
+// collection().get(), collection().where(...).where(...).get(),
+// and db.batch().delete(ref).commit().
+//
+// Key detail: every doc "ref" includes a pointer to its parent collection
+// via `ref._collection`, so batch.delete(ref) can mutate the correct store.
+
 let autoId = 0;
 const genId = () => `auto_${++autoId}`;
-
-function makeSnapshotFromMap(map) {
-  const docs = Array.from(map.entries()).map(([id, data]) => ({
-    id,
-    data: () => data,
-    ref: { id }
-  }));
-  return { docs };
-}
 
 function createCollection(initial = {}) {
   const store = new Map(Object.entries(initial)); // id -> data
 
+  // Query wrapper that shares the same underlying store and applies filters.
+  function makeQuery(col, filters = []) {
+    return {
+      _name: col._name,
+      _filters: filters,
+      _getData: () => store,
+      where(field, op, value) {
+        if (op !== '==') throw new Error('mockDb only supports == in where()');
+        return makeQuery(col, [...this._filters, { field, op, value }]);
+      },
+      async get() {
+        const filtered = Array.from(store.entries()).filter(([, data]) =>
+          this._filters.every(f => (f.op === '==' ? data[f.field] === f.value : false))
+        );
+        const docs = filtered.map(([id, data]) => ({
+          id,
+          data: () => data,
+          // include the originating collection so batch.delete can work
+          ref: { id, _collection: col }
+        }));
+        return { docs, empty: docs.length === 0, forEach: cb => docs.forEach(cb) };
+      }
+    };
+  }
+
   const col = {
     _name: null,
     _filters: [],
+    // expose underlying map so batch.delete can mutate it
+    _getData: () => store,
+
     doc(id) {
       const _id = id || genId();
       return {
@@ -562,34 +590,27 @@ function createCollection(initial = {}) {
           store.delete(_id);
         },
         get ref() {
+          // IMPORTANT: keep a pointer back to the collection
           return { id: _id, _collection: col };
         }
       };
     },
+
     where(field, op, value) {
-      const next = createCollection();
-      next._name = this._name;
-      next._filters = [...this._filters, { field, op, value }];
-      next._getData = () => store; // keep reference
-      next._allFilters = () => next._filters;
-      next.get = async () => {
-        const filtered = Array.from(store.entries()).filter(([, data]) =>
-          next._filters.every(f => f.op === '==' ? data[f.field] === f.value : false)
-        );
-        const docs = filtered.map(([id, data]) => ({ id, data: () => data, ref: { id } }));
-        return { docs, empty: docs.length === 0, forEach: cb => docs.forEach(d => cb(d)) };
-      };
-      return next;
+      if (op !== '==') throw new Error('mockDb only supports == in where()');
+      return makeQuery(col, [{ field, op, value }]);
     },
+
     async get() {
-      const snapshot = makeSnapshotFromMap(store);
-      return {
-        ...snapshot,
-        empty: snapshot.docs.length === 0,
-        forEach: cb => snapshot.docs.forEach(cb)
-      };
+      const docs = Array.from(store.entries()).map(([id, data]) => ({
+        id,
+        data: () => data,
+        ref: { id, _collection: col }
+      }));
+      return { docs, empty: docs.length === 0, forEach: cb => docs.forEach(cb) };
     }
   };
+
   return col;
 }
 
@@ -607,6 +628,7 @@ function createMockDb(seed = {}) {
     collection(name) {
       return ensure(name);
     },
+
     batch() {
       const ops = [];
       return {
@@ -616,31 +638,16 @@ function createMockDb(seed = {}) {
         async commit() {
           for (const op of ops) {
             if (op.type === 'delete') {
-              const c = ensure(op.ref._collection?._name || op.ref.collectionName || nameFromRef(op.ref));
-              // try both styles
-              if (op.ref._collection) {
-                const store = op.ref._collection._getData ? op.ref._collection._getData() : null;
-                if (store) store.delete(op.ref.id);
-              } else {
-                // fallback: find by id in the collection map
-                const snap = await c.get();
-                const match = snap.docs.find(d => d.id === op.ref.id);
-                if (match) {
-                  const map = c._getData ? c._getData() : null;
-                  if (map) map.delete(op.ref.id);
-                }
-              }
+              const col = op.ref && op.ref._collection;
+              if (!col) continue; // nothing to do if no collection pointer
+              const map = col._getData ? col._getData() : null;
+              if (map) map.delete(op.ref.id);
             }
           }
         }
       };
     }
   };
-}
-
-function nameFromRef(ref) {
-  // best-effort helper if needed
-  return ref && ref.collectionName ? ref.collectionName : '';
 }
 
 module.exports = { createMockDb };
