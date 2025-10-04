@@ -2,19 +2,19 @@
   "name": "vehicle-management",
   "private": true,
   "engines": { "node": ">=18" },
-  "workspaces": ["frontend"],
   "dependencies": {
     "cloudinary": "^2.5.1",
     "firebase-admin": "^12.7.0",
     "formidable": "^3.5.0"
   },
-    "scripts": {
+  "scripts": {
+    "vercel-build": "npm --prefix frontend ci && npm --prefix frontend run build",
     "build:frontend": "npm --prefix frontend ci && npm --prefix frontend run build",
     "test": "jest",
     "test:api": "jest",
     "test:frontend": "npm --prefix frontend test -- --watchAll=false"
   },
-    "devDependencies": {
+  "devDependencies": {
     "jest": "^29.7.0",
     "node-mocks-http": "^1.11.0"
   }
