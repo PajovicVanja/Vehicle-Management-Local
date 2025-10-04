@@ -9,6 +9,7 @@
     "formidable": "^3.5.0"
   },
     "scripts": {
+    "build:frontend": "npm --prefix frontend ci && npm --prefix frontend run build",
     "test": "jest",
     "test:api": "jest",
     "test:frontend": "npm --prefix frontend test -- --watchAll=false"

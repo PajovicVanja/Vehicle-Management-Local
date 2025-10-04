@@ -1,19 +1,21 @@
 {
   "version": 2,
-  "headers": [
+  "builds": [
+    { "src": "api/**/*.js", "use": "@vercel/node" },
     {
-      "source": "/api/(.*)",
-      "headers": [
-        { "key": "Access-Control-Allow-Origin", "value": "*" },
-        { "key": "Access-Control-Allow-Methods", "value": "GET,POST,PATCH,DELETE,OPTIONS" },
-        { "key": "Access-Control-Allow-Headers", "value": "Authorization, Content-Type, X-Requested-With" },
-        { "key": "Access-Control-Allow-Credentials", "value": "true" }
-      ]
+      "src": "frontend/package.json",
+      "use": "@vercel/static-build",
+      "config": { "distDir": "frontend/build" }
     }
   ],
-  "rewrites": [
-    { "source": "/api/auth/(.*)",        "destination": "/api/auth/[...path].js?path=$1" },
-    { "source": "/api/vehicle/(.*)",     "destination": "/api/vehicle/[...path].js?path=$1" },
-    { "source": "/api/reservation/(.*)", "destination": "/api/reservation/[...path].js?path=$1" }
+  "routes": [
+    { "src": "^/api/auth/(.*)$",        "dest": "/api/auth/[...path].js?path=$1" },
+    { "src": "^/api/vehicle/(.*)$",     "dest": "/api/vehicle/[...path].js?path=$1" },
+    { "src": "^/api/reservation/(.*)$", "dest": "/api/reservation/[...path].js?path=$1" },
+    { "src": "^/api/health$",           "dest": "/api/health.js" },
+
+    { "src": "^/(.*\\.(?:css|js|map|png|jpg|jpeg|gif|svg|ico|txt|json))$", "dest": "frontend/build/$1" },
+
+    { "src": "^(?!/api/).*", "dest": "frontend/build/index.html" }
   ]
 }
