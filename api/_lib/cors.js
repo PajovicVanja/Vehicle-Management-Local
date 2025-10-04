@@ -1,4 +1,4 @@
-// api/_lib/cors.js
+// api/_lib/cors.jss
 const ALLOW_ORIGINS = new Set([
   'https://company-vehicle-management.web.app',
   'https://company-vehicle-management.firebaseapp.com',
