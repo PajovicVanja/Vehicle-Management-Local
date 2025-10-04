@@ -7,8 +7,8 @@ const { setCors, handlePreflight } = require('../_lib/cors');
 
 module.exports = async (req, res) => {
   if (handlePreflight(req, res)) return; // OPTIONS
-  setCors(res);
-  const seg = req.query.path;
+setCors(req, res);  
+const seg = req.query.path;
   const parts = Array.isArray(seg) ? seg : (seg ? [seg] : []);
 
   const user = await verifyAuth(req, res);
