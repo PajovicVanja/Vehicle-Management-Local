@@ -1,7 +1,20 @@
+// frontend/src/components/VehicleTable.js
 import React from "react";
 import VehicleRow from "./VehicleRow";
 
-const VehicleTable = ({ vehicles, userReservation, canRepairVehicle, canDeleteVehicle, handleView, handleReserve, removeReserve, setReportIssueVehicleId, handleRepair, handleDelete, handleViewMessage }) => {
+const VehicleTable = ({
+  vehicles,
+  userReservation,
+  canRepairVehicle,
+  canDeleteVehicle,
+  handleView,
+  handleReserve,
+  removeReserve,
+  setReportIssueVehicleId,
+  handleRepair,
+  handleDelete,
+  handleViewMessage,
+}) => {
   // Debugging
   console.log("VehicleTable Debug - Vehicles:", vehicles);
   console.log("VehicleTable Debug - Handle View Message Function:", handleViewMessage);
@@ -11,7 +24,9 @@ const VehicleTable = ({ vehicles, userReservation, canRepairVehicle, canDeleteVe
       <thead>
         <tr>
           <th>Vehicle Name</th>
-          <th>Engine</th>
+          <th>Color</th>
+          <th>Year</th>
+          <th>Engine / HP</th>
           <th>Actions</th>
         </tr>
       </thead>

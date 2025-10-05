@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback, useMemo } from "react";
 import { getUserData } from "../services/authService";
 import {
   getVehicleData,
@@ -16,6 +16,7 @@ import VehicleTable from "./VehicleTable";
 import VehicleDetail from "./VehicleDetail";
 import MalfunctionMessage from "./MalfunctionMessage";
 import ReservationControls from "./ReservationControls";
+import VehicleSearch from "./VehicleSearch";
 import { getAuth } from "firebase/auth";
 
 function Reserve({
@@ -38,6 +39,17 @@ function Reserve({
   const [reportIssueVehicleId, setReportIssueVehicleId] = useState(null);
   const [showMessage, setShowMessage] = useState(null);
 
+  // Search filters
+  const [filters, setFilters] = useState({
+    name: "",
+    color: "",
+    engine: "",
+    yearMin: "",
+    yearMax: "",
+    hpMin: "",
+    hpMax: "",
+  });
+
   const canAddVehicle = role === "Admin";
   const canRepairVehicle = role === "Admin";
   const canDeleteVehicle = role === "Admin";
@@ -47,10 +59,7 @@ function Reserve({
   useEffect(() => {
     console.log("Reserve Debug - Vehicles:", vehicles);
     console.log("Reserve Debug - Can Repair Vehicle:", canRepairVehicle);
-    console.log(
-      "Reserve Debug - Handle View Message Function:",
-      handleViewMessage
-    );
+    console.log("Reserve Debug - Handle View Message Function:", handleViewMessage);
   }, [vehicles, canRepairVehicle]);
 
   const fetchVehicles = useCallback(async () => {
@@ -78,24 +87,23 @@ function Reserve({
     }
   }, [token]);
 
-useEffect(() => {
-  const fetchData = async () => {
-    setLoading(true);
-    const userData = await getUserData(token);
-    if (userData.success) {
-      setRole(userData.data.role || "Driver");
-      const auth = getAuth();
-      const user = auth.currentUser;
-      user ? setUid(user.uid) : setUid(null);
-      await fetchVehicles();
-    } else {
-      // IMPORTANT: clear loading and show a helpful message
-      setMessage(userData.error || "Failed to load profile");
-      setLoading(false);
-    }
-  };
-  fetchData();
-}, [token, fetchVehicles]);
+  useEffect(() => {
+    const fetchData = async () => {
+      setLoading(true);
+      const userData = await getUserData(token);
+      if (userData.success) {
+        setRole(userData.data.role || "Driver");
+        const auth = getAuth();
+        const user = auth.currentUser;
+        user ? setUid(user.uid) : setUid(null);
+        await fetchVehicles();
+      } else {
+        setMessage(userData.error || "Failed to load profile");
+        setLoading(false);
+      }
+    };
+    fetchData();
+  }, [token, fetchVehicles]);
 
   useEffect(() => {
     if (reservations.length > 0 && uid) {
@@ -103,6 +111,45 @@ useEffect(() => {
       setUserReservation(userRes);
     }
   }, [reservations, uid]);
+
+  // --- Search logic (case-insensitive contains for text; numeric ranges for year & hp)
+  const filteredVehicles = useMemo(() => {
+    const norm = (v) => (v ?? "").toString().toLowerCase();
+    const num = (v) => {
+      const n = parseInt(v, 10);
+      return Number.isFinite(n) ? n : null;
+    };
+
+    const f = {
+      name: norm(filters.name),
+      color: norm(filters.color),
+      engine: norm(filters.engine),
+      yearMin: num(filters.yearMin),
+      yearMax: num(filters.yearMax),
+      hpMin: num(filters.hpMin),
+      hpMax: num(filters.hpMax),
+    };
+
+    return vehicles.filter((veh) => {
+      const name = norm(veh.vehicleName);
+      const color = norm(veh.color);
+      const engine = norm(veh.engine);
+      const year = num(veh.year);
+      const hp = num(veh.hp);
+
+      if (f.name && !name.includes(f.name)) return false;
+      if (f.color && !color.includes(f.color)) return false;
+      if (f.engine && !engine.includes(f.engine)) return false;
+
+      if (f.yearMin != null && (year == null || year < f.yearMin)) return false;
+      if (f.yearMax != null && (year == null || year > f.yearMax)) return false;
+
+      if (f.hpMin != null && (hp == null || hp < f.hpMin)) return false;
+      if (f.hpMax != null && (hp == null || hp > f.hpMax)) return false;
+
+      return true;
+    });
+  }, [vehicles, filters]);
 
   const handleReserve = (vehicleId) => {
     setReserveVehicleId(vehicleId);
@@ -159,10 +206,21 @@ useEffect(() => {
 
   const sanitizeMessage = (msg) => {
     if (msg && msg.startsWith("Unexpected token '<'")) {
-      return ""; // Return an empty string or a default message to hide it
+      return "";
     }
-    return msg; // Otherwise, keep the original message
+    return msg;
   };
+
+  const clearFilters = () =>
+    setFilters({
+      name: "",
+      color: "",
+      engine: "",
+      yearMin: "",
+      yearMax: "",
+      hpMin: "",
+      hpMax: "",
+    });
 
   if (reserveVehicleId) {
     return (
@@ -200,7 +258,7 @@ useEffect(() => {
       <MalfunctionMessage
         vehicleId={showMessage}
         setShowMessage={setShowMessage}
-        token={token} // Pass token for API calls
+        token={token}
       />
     );
   }
@@ -208,6 +266,15 @@ useEffect(() => {
   return (
     <div className="vehicle-container">
       <h2>List of All Vehicles</h2>
+
+      {/* Search controls */}
+      <VehicleSearch filters={filters} setFilters={setFilters} onClear={clearFilters} />
+
+      {/* Tiny helper text */}
+      <p style={{ marginTop: -6, marginBottom: 10, fontSize: 12, opacity: 0.8 }}>
+        Name/Color/Engine use case-insensitive “contains”. Year/HP filter by min/max.
+      </p>
+
       {loading ? (
         <p>Loading...</p>
       ) : error ? (
@@ -215,20 +282,26 @@ useEffect(() => {
       ) : vehicles.length === 0 ? (
         <p>No vehicles found.</p>
       ) : (
-        <VehicleTable
-          vehicles={vehicles}
-          userReservation={userReservation}
-          canRepairVehicle={canRepairVehicle}
-          canDeleteVehicle={canDeleteVehicle}
-          handleView={handleView}
-          handleReserve={handleReserve}
-          removeReserve={removeReserve}
-          setReportIssueVehicleId={setReportIssueVehicleId}
-          handleRepair={handleRepair}
-          handleDelete={handleDelete}
-          handleViewMessage={handleViewMessage}
-        />
+        <>
+          <p style={{ fontSize: 12, opacity: 0.8, margin: "4px 0 8px" }}>
+            Showing {filteredVehicles.length} of {vehicles.length}
+          </p>
+          <VehicleTable
+            vehicles={filteredVehicles}
+            userReservation={userReservation}
+            canRepairVehicle={canRepairVehicle}
+            canDeleteVehicle={canDeleteVehicle}
+            handleView={handleView}
+            handleReserve={handleReserve}
+            removeReserve={removeReserve}
+            setReportIssueVehicleId={setReportIssueVehicleId}
+            handleRepair={handleRepair}
+            handleDelete={handleDelete}
+            handleViewMessage={handleViewMessage}
+          />
+        </>
       )}
+
       <ReservationControls
         canAddVehicle={canAddVehicle}
         canViewAllReservations={canViewAllReservations}
