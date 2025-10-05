@@ -114,7 +114,11 @@ function App() {
           )}
           {/* Show the active reservation, if it exists */}
           {userReservation ? (
-            <ViewReservation token={token} reservationData={userReservation} />
+            <ViewReservation
+              token={token}
+              reservationData={userReservation}
+              onReservationCleared={() => setUserReservation(null)}  
+            />
           ) : (<></>)}
           <div className="button-group">
             <button

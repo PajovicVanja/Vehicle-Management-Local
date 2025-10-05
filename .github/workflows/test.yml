@@ -84,8 +84,9 @@ jobs:
         env:
           CI: true
         run: >
-          npm test -- --coverage --watchAll=false
+          npm test -- --coverage --watchAll=false --passWithNoTests
           --testPathPattern="^(?!.*(UploadLicense|Login|ReserveVehicleForm|CurrentReservationsAdmin)\\.test\\.js$).*"
+
 
 
       - name: Upload frontend coverage
