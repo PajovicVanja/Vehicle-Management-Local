@@ -1,0 +1,93 @@
+name: CI — Jest tests
+
+on:
+  push:
+    branches: [ "**" ]
+  pull_request:
+    branches: [ "**" ]
+
+concurrency:
+  group: tests-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  api-tests:
+    name: API tests (Node ${{ matrix.node }})
+    runs-on: ubuntu-latest
+    if: |
+      !contains(github.event.head_commit.message, '[skip ci]') &&
+      (github.event_name != 'pull_request' ||
+       contains(join(github.event.pull_request.changed_files.*.filename, ' '), 'api/') ||
+       contains(join(github.event.pull_request.changed_files.*.filename, ' '), 'package.json') ||
+       contains(join(github.event.pull_request.changed_files.*.filename, ' '), 'package-lock.json'))
+    strategy:
+      matrix:
+        node: [18, 20]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Use Node ${{ matrix.node }}
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node }}
+          cache: npm
+          cache-dependency-path: |
+            package-lock.json
+
+      - name: Install deps (root)
+        run: npm ci
+
+      - name: Run API tests
+        env:
+          # Keep CRA/JSDOM out of this run; Jest defaults are fine.
+          CI: true
+        run: npm run test:api -- --coverage
+
+      - name: Upload API coverage
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-api-node-${{ matrix.node }}
+          path: coverage/
+
+  frontend-tests:
+    name: Frontend tests (Node ${{ matrix.node }})
+    runs-on: ubuntu-latest
+    if: |
+      !contains(github.event.head_commit.message, '[skip ci]') &&
+      (github.event_name != 'pull_request' ||
+       contains(join(github.event.pull_request.changed_files.*.filename, ' '), 'frontend/') ||
+       contains(join(github.event.pull_request.changed_files.*.filename, ' '), 'package.json') ||
+       contains(join(github.event.pull_request.changed_files.*.filename, ' '), 'frontend/package.json') ||
+       contains(join(github.event.pull_request.changed_files.*.filename, ' '), 'frontend/package-lock.json'))
+    strategy:
+      matrix:
+        node: [18, 20]
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Use Node ${{ matrix.node }}
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node }}
+          cache: npm
+          cache-dependency-path: |
+            frontend/package-lock.json
+
+      - name: Install deps (frontend)
+        run: npm ci
+
+      - name: Run frontend tests (CRA/Jest)
+        env:
+          CI: true
+        run: npm test -- --coverage --watchAll=false
+
+      - name: Upload frontend coverage
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-frontend-node-${{ matrix.node }}
+          path: frontend/coverage/
