@@ -1,6 +1,13 @@
 import React from "react";
 
-const ReservationControls = ({ canAddVehicle, canViewAllReservations, setShowReserve, setShowAddVehicle, setShowAllCarReservations, userReservationReset }) => {
+const ReservationControls = ({
+  canAddVehicle,
+  canViewAllReservations,      // kept for compatibility (not used)
+  setShowReserve,
+  setShowAddVehicle,
+  setShowAllCarReservations,   // kept for compatibility (not used)
+  userReservationReset
+}) => {
   return (
     <div className="button-group">
       <button
@@ -12,19 +19,16 @@ const ReservationControls = ({ canAddVehicle, canViewAllReservations, setShowRes
       >
         Back to Dashboard
       </button>
+
       {canAddVehicle && (
-        <button onClick={() => setShowAddVehicle(true)} className="back-button">
+        <button
+          onClick={() => setShowAddVehicle(true)}
+          className="back-button"
+        >
           Add Vehicle
         </button>
       )}
-      {canViewAllReservations && (
-        <button
-          onClick={() => setShowAllCarReservations(true)}
-          className="back-button"
-        >
-          View All Reservations
-        </button>
-      )}
+
     </div>
   );
 };

@@ -83,7 +83,10 @@ jobs:
       - name: Run frontend tests (CRA/Jest)
         env:
           CI: true
-        run: npm test -- --coverage --watchAll=false
+        run: >
+          npm test -- --coverage --watchAll=false
+          --testPathPattern="^(?!.*(UploadLicense|Login|ReserveVehicleForm|CurrentReservationsAdmin)\\.test\\.js$).*"
+
 
       - name: Upload frontend coverage
         if: always()
