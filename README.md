@@ -230,7 +230,7 @@ Key screens/components:
 
 ---
 
-## 🧪 Testing
+##  Testing
 
 - **API tests:** under `api/__tests__` using `node-mocks-http` and a small **in‑memory Firestore mock**.
 - **Frontend tests:** React Testing Library under `frontend/src/__tests__`.
