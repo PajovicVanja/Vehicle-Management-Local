@@ -1,159 +1,156 @@
+# Company Vehicle Management (Local Development)
 
-# Company Vehicle Management
+A full‑stack demo for managing company vehicles and reservations — set up for **local development only**. The app lets **drivers** register/login, upload a driver’s license, browse/search vehicles, make/cancel reservations, and report issues. **Admins** can add/delete vehicles, mark repairs complete, and view all current reservations.
 
-A full‑stack demo for managing company vehicles and reservations. The app lets **drivers** register/login, upload a driver’s license, browse/search vehicles, make/cancel reservations, and report issues. **Admins** can add/delete vehicles, mark repairs complete, and view all current reservations.  
+**Tech stack:** React (CRA) · Firebase Auth & Firestore · **Express server (Node 18)** · Cloudinary (image upload) · Jest/RTL for tests.
 
-**Tech stack:** React (CRA) • Firebase Auth & Firestore • Vercel Serverless APIs (Node 18) • Cloudinary (image upload) • Jest/RTL for tests.
-
-
+> Note: The previous `/api` base path has been **removed**. All backend routes are now rooted at **`/server`**.
 
 ---
 
-##  Features
+## Features
+
 - Email/password **auth** (Firebase).
 - **Profile** view with role (default `Driver`) and license image.
 - **Driver’s license upload** → stored on Cloudinary, URL saved in Firestore.
 - **Vehicle catalog** with search (name, color, engine, year range, HP range).
-- **Reserve / unreserve** a vehicle (date picker, protects from double booking by status).
+- **Reserve / unreserve** a vehicle (date picker, status prevents double bookings).
 - **Report issue** → vehicle moves to `repair`, active reservations removed.
 - **Admin**: add vehicle, delete vehicle, **finish repair** (set back to `available`), view **current reservations** with user+vehicle info and license thumbnail.
-- **CORS** allowlist for your deployed origins.
-- **Tests** for APIs and key UI flows.
+- **CORS** enabled for local dev.
+- **Frontend tests** for key UI flows (Jest + React Testing Library).
 
 ---
 
-##  Monorepo Layout
+## Monorepo Layout
 
 ```
-/api/                     # Vercel serverless functions (Node.js)
-  _lib/                   # Shared helpers (Firebase Admin, CORS, auth, Cloudinary)
-  auth/[...path].js       # /api/auth/* (profile, upload-license)
-  vehicle/[...path].js    # /api/vehicle/* (vehicles, reserve, repair, etc.)
-  reservation/[...path].js# /api/reservation/* (list/get/delete)
-  health.js               # /api/health
-  __tests__/              # Jest tests for API with in‑memory Firestore mock
+/server/                   # Express API (Node.js)
+  lib/
+    cloudinary.js          # Cloudinary init (v2)
+    firebaseAdmin.js       # Firebase Admin (Service Account)
+    verifyAuth.js          # Bearer -> ID token verification + role lookup
+  routes/
+    auth.js                # /server/auth/*  (profile, upload-license)
+    vehicle.js             # /server/vehicle/* (vehicles, reserve, repair, etc.)
+    reservation.js         # /server/reservation/* (list/get/delete)
+  server.js                # Express app entry
 
-/frontend/                # React app (CRA)
-  src/components/         # UI components (Register, Login, Profile, etc.)
-  src/services/           # Fetch wrappers to the API
-  src/firebaseClient.js   # Firebase client init (Auth + Firestore)
-  src/firebaseConfig.js   # Client config (public)
-  src/__tests__/          # RTL tests
-  public/                 # CRA public assets
+/frontend/                 # React app (Create React App)
+  src/components/          # UI components (Register, Login, Profile, etc.)
+  src/services/            # Fetch wrappers to the API
+  src/firebaseClient.js    # Firebase client init (Auth + Firestore)
+  src/firebaseConfig.js    # Client config (public)
+  src/__tests__/           # RTL tests
+  public/                  # CRA public assets
 
-package.json              # Root (API deps + test scripts + static build hook)
-vercel.json               # Build + routes for API and SPA on Vercel
-firebase.json             # Optional Firebase Hosting for the SPA
-firestore.rules           # Firestore security rules (client-side access)
+package.json               # Root scripts (dev server + CRA + tests)
+firebase.json              # Optional: SPA hosting (not used for API locally)
+firestore.rules            # Firestore security rules (client-side access)
 ```
 
 ---
 
-##  Quick Start (Local)
+## Quick Start (Local)
 
-**Prereqs:** Node ≥ 18, npm (or yarn), Cloudinary account, Firebase project.
+**Prerequisites:** Node ≥ 18, npm, a Cloudinary account, and a Firebase project (Auth + Firestore).
 
-1) **Install** (root + frontend):
+### 1) Install dependencies
+
 ```bash
+# from repo root
 npm install
 npm --prefix frontend install
 ```
 
-2) **Environment variables** (for API functions):
-Create envs in your shell or in Vercel dashboard. Required by `/api/_lib/firebaseAdmin.js` and `/api/_lib/cloudinary.js`:
+### 2) Environment variables
+
+Create a **`.env` in the project root** for the Express server (used by `/server/*` routes):
 
 ```bash
-# Firebase Admin (Service Account) – store as Vercel env vars
-FIREBASE_PROJECT_ID=...
-FIREBASE_PRIVATE_KEY_ID=...
-FIREBASE_PRIVATE_KEY="-----BEGIN PRIVATE KEY-----\n...\n-----END PRIVATE KEY-----\n"
-FIREBASE_CLIENT_EMAIL=...
-FIREBASE_CLIENT_ID=...
+# Firebase Admin (Service Account)
+FIREBASE_PROJECT_ID=your-project-id
+FIREBASE_PRIVATE_KEY_ID=your-private-key-id
+FIREBASE_PRIVATE_KEY="-----BEGIN PRIVATE KEY-----
+...
+-----END PRIVATE KEY-----
+"
+FIREBASE_CLIENT_EMAIL=your-sa@your-project-id.iam.gserviceaccount.com
+FIREBASE_CLIENT_ID=1234567890
 FIREBASE_AUTH_URI=https://accounts.google.com/o/oauth2/auth
 FIREBASE_TOKEN_URI=https://oauth2.googleapis.com/token
 FIREBASE_AUTH_PROVIDER_CERT_URL=https://www.googleapis.com/oauth2/v1/certs
-FIREBASE_CLIENT_CERT_URL=...
+FIREBASE_CLIENT_CERT_URL=https://www.googleapis.com/robot/v1/metadata/x509/firebase-adminsdk-xxxxx%40your-project-id.iam.gserviceaccount.com
 
 # Cloudinary (for license uploads)
-CLOUDINARY_CLOUD_NAME=...
-CLOUDINARY_API_KEY=...
-CLOUDINARY_API_SECRET=...
+CLOUDINARY_CLOUD_NAME=your-cloud-name
+CLOUDINARY_API_KEY=your-api-key
+CLOUDINARY_API_SECRET=your-api-secret
 
-# Frontend → API base; omit to default to "/api"
-# In CRA: create frontend/.env with REACT_APP_API_URL=http://localhost:3001/api if needed
-REACT_APP_API_URL=http://localhost:3001/api
+# Server
+PORT=4000
 ```
 
->  The **private key must keep `\n`** newlines escaped when set in envs (Vercel/CLI).  
-> Client `firebaseConfig.js` contains public config (safe to ship). Do **not** put secrets in frontend code.
+> The **private key must keep `\n` escape sequences** inside the env var. The server replaces them with real newlines at runtime.
 
-3) **Run locally**
+Create **`frontend/.env`** to let the React app talk to the Express server at `/server`:
 
-**Option A — one process via Vercel dev (recommended for API):**
 ```bash
-# run on a non-CRA port to avoid clash
-npx vercel dev --listen 3001
-# Frontend fetches /api from http://localhost:3001 → set REACT_APP_API_URL accordingly
+# Frontend -> API base (relative; CRA dev server proxies to 4000 via package.json)
+REACT_APP_API_URL=/server
 ```
 
-**Option B — separate processes:**
+Notes:
+- `frontend/package.json` already proxies unknown requests to `http://localhost:4000` during development.
+- If you prefer an absolute base URL instead, you can set `REACT_APP_API_URL=http://localhost:4000/server`.
+
+### 3) Run in development
+
 ```bash
-# 1) Start API via Vercel dev on 3001
-npx vercel dev --listen 3001
-
-# 2) Start CRA at 3000
-npm --prefix frontend start
-
-# 3) Point the frontend to the API:
-# frontend/.env → REACT_APP_API_URL=http://localhost:3001/api
+# One command for both servers (Express @ 4000 + CRA @ 3000)
+npm run dev
 ```
 
-4) **Build**:
+Open the app at **http://localhost:3000**. The Express server logs: `Server listening on http://localhost:4000`.
+
+> If you see `'react-scripts' is not recognized` install frontend deps: `npm --prefix frontend install`.
+
+### 4) Build (optional)
+
 ```bash
-# Builds the CRA app from root using the configured static-build
+# Build the CRA app only (output in frontend/build)
 npm run build:frontend
 ```
 
-5) **Tests**:
+### 5) Tests
+
 ```bash
-# API + Frontend
+# Frontend tests (Jest + RTL)
 npm test
-
-# Only API
-npm run test:api
-
-# Only Frontend
-npm run test:frontend
 ```
 
 ---
 
-##  Auth, Roles & Security
+## Auth, Roles & Security
 
-- **Auth:** Bearer token from Firebase ID token. Verified in all API routes by `verifyAuth()` (Admin SDK).
-- **Role source:** Firestore `users/{uid}.role` (falls back to `Driver` when missing).
+- **Auth:** All backend routes require `Authorization: Bearer <Firebase ID token>`. Tokens are verified in `server/lib/verifyAuth.js`.
+- **Role source:** Firestore `users/{uid}.role` (defaults to `Driver` when missing).
 - **Roles in backend:**
-  - `Admin`: can `POST /vehicle/vehicles`, `DELETE /vehicle/vehicles/:id`, `GET /vehicle/admin-reservations`.
+  - `Admin`: can `POST /server/vehicle/vehicles`, `DELETE /server/vehicle/vehicles/:id`, `GET /server/vehicle/admin-reservations`.
   - `Driver`: reserve/unreserve and report issues.
   - `Manager`: currently **UI-only**; the `admin-reservations` API is restricted to Admin in code.
 - **Firestore rules (client):** only `users/{uid}` is readable/writable by the signed-in user; other collections are server-managed via Admin SDK (`firestore.rules`).
 
 ---
 
-##  CORS
-
-Allowlist covers your Firebase Hosting + localhost + Vercel previews. Others fall back to `*` since Bearer tokens are used (no cookies). See `api/_lib/cors.js` to adjust.
-
----
-
-##  Data Model (Firestore)
+## Data Model (Firestore)
 
 - **users/{uid}**
   - `email`, `role`, `licenseImageUrl`
 
 - **vehicles/{vehicleId}**
   - `vehicleId`, `vehicleName`, `engine`, `hp`, `color`, `year`, `status`
-  - `status`: `"available"` | `"repair"` | `"<reservationId>"` (reserved)
+  - `status`: `"available"` · `"repair"` · `"<reservationId>"` (reserved)
 
 - **reservation/{reservationId}**
   - `reservationId`, `vehicleId`, `userId`, `startDate`, `endDate`, `status`
@@ -163,118 +160,99 @@ Allowlist covers your Firebase Hosting + localhost + Vercel previews. Others fal
 
 ---
 
-##  REST API
+## REST API (Local)
 
-> Base URL: `REACT_APP_API_URL` (defaults to `/api` in the frontend). All routes require `Authorization: Bearer <ID_TOKEN>`.
+> **Base URL:** `REACT_APP_API_URL` (defaults to `/server` in development).  
+> All routes require `Authorization: Bearer <ID_TOKEN>`.
 
 ### Health
-- `GET /api/health` → `{ status: "ok", message, timestamp }`
+- `GET /server/health` → `{ status: "ok", message, timestamp }`
 
 ### Auth
-- `GET /api/auth/profile` → `{ email, role, licenseImageUrl }`
-- `POST /api/auth/upload-license` (multipart form, field **`licenseImage`**)
+- `GET /server/auth/profile` → `{ email, role, licenseImageUrl }`
+- `POST /server/auth/upload-license` (multipart form, field **`licenseImage`**)
   - Uploads to Cloudinary `licenses/{uid}` and updates `users/{uid}.licenseImageUrl`
 
 **cURL example:**
 ```bash
-curl -H "Authorization: Bearer $TOKEN"   http://localhost:3001/api/auth/profile
+TOKEN="your_firebase_id_token"
+curl -H "Authorization: Bearer $TOKEN" http://localhost:4000/server/auth/profile
 ```
 
 ```bash
-curl -X POST -H "Authorization: Bearer $TOKEN"   -F "licenseImage=@/path/to/license.png"   http://localhost:3001/api/auth/upload-license
+curl -X POST   -H "Authorization: Bearer $TOKEN"   -F "licenseImage=@/path/to/license.png"   http://localhost:4000/server/auth/upload-license
 ```
 
 ### Vehicles
-- `GET /api/vehicle/vehicles` → list all vehicles
-- `GET /api/vehicle/vehicles/:vehicleId` → one vehicle
-- `POST /api/vehicle/vehicles` (Admin) body: `{ vehicleName, engine, hp, color, year }`
-- `DELETE /api/vehicle/vehicles/:vehicleId` (Admin)
-- `PATCH /api/vehicle/vehicles/:vehicleId/reserve` body: `{ startDate, endDate }`
-  - Creates a reservation doc, sets vehicle `status` to the created `reservationId`.
-- `PATCH /api/vehicle/vehicles/:vehicleId/unreserve`
+- `GET /server/vehicle/vehicles` → list all vehicles
+- `GET /server/vehicle/vehicles/:vehicleId` → one vehicle
+- `POST /server/vehicle/vehicles` (Admin) body: `{ vehicleName, engine, hp, color, year }`
+- `DELETE /server/vehicle/vehicles/:vehicleId` (Admin)
+- `PATCH /server/vehicle/vehicles/:vehicleId/reserve` body: `{ startDate, endDate }`
+  - Creates a reservation doc and sets vehicle `status` to the created `reservationId`.
+- `PATCH /server/vehicle/vehicles/:vehicleId/unreserve`
   - Sets `status: "available"` (client is expected to delete the reservation doc).
-- `PATCH /api/vehicle/vehicles/:vehicleId/repair` (Admin)
+- `PATCH /server/vehicle/vehicles/:vehicleId/repair` (Admin)
   - **Finishes** a repair: only allowed when current `status === "repair"`; sets `available` and deletes malfunctions for the vehicle.
-- `POST /api/vehicle/vehicles/:vehicleId/report-issue` body: `{ description }`
+- `POST /server/vehicle/vehicles/:vehicleId/report-issue` body: `{ description }`
   - Writes a `malfunctions` doc, sets vehicle to `"repair"`, deletes **Active** reservations for that vehicle.
-- `GET /api/vehicle/malfunctions` → list malfunctions
-- `GET /api/vehicle/admin-reservations` (Admin)
+- `GET /server/vehicle/malfunctions` → list malfunctions
+- `GET /server/vehicle/admin-reservations` (Admin)
   - Aggregates reservation + vehicle + user (email & license thumbnail).
 
 **cURL reserve example:**
 ```bash
-curl -X PATCH -H "Authorization: Bearer $TOKEN" -H "Content-Type: application/json"   -d '{"startDate":"2025-01-01","endDate":"2025-01-03"}'   http://localhost:3001/api/vehicle/vehicles/veh1/reserve
+curl -X PATCH   -H "Authorization: Bearer $TOKEN"   -H "Content-Type: application/json"   -d '{"startDate":"2025-01-01","endDate":"2025-01-03"}'   http://localhost:4000/server/vehicle/vehicles/veh1/reserve
 ```
 
 ### Reservations
-- `GET /api/reservation/reservation` → list all reservations
-- `GET /api/reservation/reservation/:resId` → one reservation
-- `DELETE /api/reservation/reservation/:resId`
-  - Deletes by **reservationId** (query), not document id. Useful when status on the vehicle holds the reservationId.
+- `GET /server/reservation/reservation` → list all reservations
+- `GET /server/reservation/reservation/:resId` → one reservation
+- `DELETE /server/reservation/reservation/:resId`
+  - Deletes by **reservationId** (query), not document id. Useful when vehicle `status` holds the `reservationId`.
 
 ---
 
-##  Frontend (CRA)
+## Frontend (CRA)
 
 Key screens/components:
-- **Login / Register** (`Login.js`, `Register.js`) – sets ID token to app state.
-- **Profile** (`Profile.js`) – shows email, role, license image + upload form.
-- **UploadLicense** – also used immediately post-registration.
-- **ReserveVehicle** – vehicle table + rich search + actions.
+- **Login / Register** – sets ID token to app state.
+- **Profile** – shows email, role, license image + upload form.
+- **UploadLicense** – used immediately post-registration or from the dashboard.
+- **ReserveVehicle** – vehicle table + search + actions.
 - **ReserveVehicleForm** – date picker flow; calls API to reserve.
 - **ViewReservation** – shows current reservation; remove reservation; report issue.
-- **AddVehicle** (Admin) – adds vehicle.
-- **CurrentReservationsAdmin** (Admin) – table with aggregated data.
+- **AddVehicle** (Admin)
+- **CurrentReservationsAdmin** (Admin)
 
-> Base URL for fetches comes from `src/config.js` (`REACT_APP_API_URL` or `/api`).
-
----
-
-##  Testing
-
-- **API tests:** under `api/__tests__` using `node-mocks-http` and a small **in‑memory Firestore mock**.
-- **Frontend tests:** React Testing Library under `frontend/src/__tests__`.
-
-Run:
-```bash
-npm test             # everything
-npm run test:api     # API only
-npm run test:frontend# frontend only
-```
+> The base URL for fetches comes from `src/config.js` (reads `REACT_APP_API_URL`). For local dev, set it to `/server` via `frontend/.env`.
 
 ---
 
-##  Deployment (Vercel + optional Firebase Hosting)
+## CORS
 
-- **Vercel** uses `vercel.json`:
-  - Builds serverless functions from `/api/**` (`@vercel/node`).
-  - Builds SPA from `frontend/build` (`@vercel/static-build`).
-  - Routes `/api/*` to the corresponding handlers.
-- Set all Firebase Admin + Cloudinary env vars in the Vercel project.
-- Optionally, deploy the SPA to **Firebase Hosting** using `firebase.json`. (If you do, keep APIs on Vercel or port APIs elsewhere.)
-
-Build step:
-```bash
-# Vercel's build runs this by default:
-npm run vercel-build
-```
+The Express app enables CORS for local development via `cors()`. Since auth uses **Bearer tokens** (no cookies), this is acceptable for local testing.
 
 ---
 
-##  Troubleshooting
+## Troubleshooting
 
-- **401 / 403 Unauthorized**: Missing/expired Firebase ID token; ensure `Authorization: Bearer <ID_TOKEN>` header.
-- **License upload fails**: Check Cloudinary envs; the API logs a warning if missing.
-- **`FIREBASE_PRIVATE_KEY` format**: Must include `\n` escapes in env var. The code replaces them with real newlines.
-- **Non‑JSON response errors**: Frontend guards for this and reports the raw response head.
-- **“Repair” endpoint**: It **finishes** a repair (only works if vehicle is already `"repair"`). Use **report‑issue** to move a vehicle into `"repair"`.
+- **`react-scripts` not recognized:** Run `npm --prefix frontend install`.
+- **Port already in use:** 3000 (CRA) or 4000 (server). Free the port or change it (`PORT=...`). On Windows PowerShell:
+  ```powershell
+  # find
+  netstat -ano | findstr :3000
+  # kill (replace PID)
+  taskkill /PID <PID> /F
+  ```
+- **401/403 Unauthorized:** Missing/expired Firebase ID token; ensure `Authorization: Bearer <ID_TOKEN>` header.
+- **License upload fails:** Check Cloudinary envs; the server logs a warning if missing.
+- **`FIREBASE_PRIVATE_KEY` format:** Must include `\n` escapes inside the env var.
+- **Non‑JSON response errors:** Frontend guards for this and reports the raw response head.
 
 ---
 
-##  Admin Tips
+## Admin Tips
 
 - Promote a user to **Admin** by setting `users/{uid}.role = "Admin"` in Firestore.
-- Manager is currently **UI‑level** only; APIs require Admin for global reservation views.
-
-
-
+- **Manager** is currently a UI-only role; backend endpoints requiring elevated access are restricted to **Admin**.
