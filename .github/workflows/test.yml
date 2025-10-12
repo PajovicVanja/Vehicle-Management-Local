@@ -2,9 +2,9 @@ name: CI — Jest tests
 
 on:
   push:
-    branches: [ "**" ]
+    branches: [ "vui" ]
   pull_request:
-    branches: [ "**" ]
+    branches: [ "vui" ]
 
 concurrency:
   group: tests-${{ github.ref }}
