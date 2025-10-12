@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import './App.css';
 import Register from './components/Register';
 import Login from './components/Login';
@@ -9,8 +9,7 @@ import UploadLicense from './components/UploadLicense';
 import CurrentReservationsAdmin from './components/CurrentReservationsAdmin';
 import ViewReservation from './components/ViewReservation';
 import { getUserData } from './services/authService';
-import { getAuth } from 'firebase/auth'; // Import Firebase Authentication
-
+import { getAuth } from 'firebase/auth';
 import { getReservationData } from './services/reservationService';
 
 function App() {
@@ -25,51 +24,59 @@ function App() {
   const [showAddVehicle, setShowAddVehicle] = useState(false);
   const [showAllCarReservations, setShowAllCarReservations] = useState(false);
 
-  //Reservation form
+  // Reservation state
   const [uid, setUid] = useState(null);
-  const [reservations, setReservations] = useState([]); 
+  const [reservations, setReservations] = useState([]);
   const [userReservation, setUserReservation] = useState(null);
 
-  // Fetch role and license status after login
-  useEffect(() => {
-    // Fetch role and license status after login
-    const fetchRole = async () => {
-      if (token) {
-        const userData = await getUserData(token);
-        if (userData.success) {
-          setRole(userData.data.role || 'Driver');
-          setLicenseUploaded(!!userData.data.licenseImageUrl);
+  // Fetch everything needed for dashboard (role, license, uid, reservations)
+  const refreshDashboard = useCallback(async () => {
+    if (!token) return;
+    const userData = await getUserData(token);
+    if (userData.success) {
+      setRole(userData.data.role || 'Driver');
+      setLicenseUploaded(!!userData.data.licenseImageUrl);
 
-          const fetchAllReservations = async () => {
-            try {
-              const vehicleSnapshot = await getReservationData(token);
-              if (vehicleSnapshot.success) {
-                setReservations(vehicleSnapshot.data);
-              }
-            } catch (error) {
-              console.log(error);
-            }
-          };
+      const auth = getAuth();
+      const user = auth.currentUser;
+      setUid(user ? user.uid : null);
 
-          fetchAllReservations();
-          // Get the authenticated user's UIDd
-          const auth = getAuth();
-          const user = auth.currentUser;
-          user ? setUid(user.uid) : setUid(null);
+      try {
+        const resSnap = await getReservationData(token);
+        if (resSnap.success) {
+          setReservations(resSnap.data);
         }
+      } catch (err) {
+        console.log(err);
       }
-    };
-    fetchRole();
+    }
   }, [token]);
 
+  // Initial fetch on login
   useEffect(() => {
-    // Fetch user reservation only after `reservations` and `uid` have been set
-    if (reservations.length > 0 && uid) {
-      const userRes = reservations.find(res => res.userId === uid);
+    if (token) refreshDashboard();
+  }, [token, refreshDashboard]);
+
+  // Re-fetch whenever the dashboard becomes active again
+  const isDashboard =
+    !!token && !showProfile && !showReserve && !showAddVehicle && !showAllCarReservations;
+
+  useEffect(() => {
+    if (isDashboard) {
+      refreshDashboard();
+    }
+  }, [isDashboard, refreshDashboard]);
+
+  // Keep userReservation in sync with reservations+uid (also clear if none)
+  useEffect(() => {
+    if (uid) {
+      const userRes = reservations.find((res) => res.userId === uid) || null;
       setUserReservation(userRes);
+    } else {
+      setUserReservation(null);
     }
   }, [reservations, uid]);
-  
+
   return (
     <div>
       <h1>Vehicle Management System</h1>
@@ -96,8 +103,8 @@ function App() {
           setShowReserve={setShowReserve}
           setShowAddVehicle={setShowAddVehicle}
           setShowAllCarReservations={setShowAllCarReservations}
-          canReserve={role === 'Driver'} 
-          userReservationReset={setUserReservation}
+          canReserve={role === 'Driver'}
+          userReservationReset={setUserReservation} // kept prop for children, but we won't clear on back anymore
         />
       ) : showProfile ? (
         <Profile token={token} setShowProfile={setShowProfile} />
@@ -110,16 +117,18 @@ function App() {
         <div className="menu-group">
           {/* Show UploadLicense for Drivers who haven't uploaded it */}
           {role === 'Driver' && !licenseUploaded && (
-            <UploadLicense token={token} />
+            <UploadLicense token={token} setLicenseUploaded={setLicenseUploaded} />
           )}
+
           {/* Show the active reservation, if it exists */}
           {userReservation ? (
             <ViewReservation
               token={token}
               reservationData={userReservation}
-              onReservationCleared={() => setUserReservation(null)}  
+              onReservationCleared={() => setUserReservation(null)}
             />
-          ) : (<></>)}
+          ) : null}
+
           <div className="button-group">
             <button
               onClick={() => setShowProfile(true)}
@@ -147,6 +156,9 @@ function App() {
                 // Log out user
                 setToken(null);
                 setRole('');
+                setLicenseUploaded(false);
+                setReservations([]);
+                setUserReservation(null);
                 setShowProfile(false);
                 setShowReserve(false);
                 setShowAddVehicle(false);
