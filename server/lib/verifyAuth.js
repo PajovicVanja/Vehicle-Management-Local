@@ -1,4 +1,4 @@
-// api/_lib/verifyAuth.js
+// server/lib/verifyAuth.js
 const { admin, db } = require('./firebaseAdmin');
 
 async function verifyAuth(req, res) {
@@ -25,4 +25,12 @@ async function verifyAuth(req, res) {
   }
 }
 
-module.exports = { verifyAuth };
+// Express helper middleware
+async function requireAuth(req, res, next) {
+  const user = await verifyAuth(req, res);
+  if (!user) return;
+  req.user = user;
+  next();
+}
+
+module.exports = { verifyAuth, requireAuth };

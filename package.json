@@ -2,20 +2,24 @@
   "name": "vehicle-management",
   "private": true,
   "engines": { "node": ">=18" },
+  "scripts": {
+    "start": "node server/server.js",
+    "dev": "concurrently \"npm:dev:server\" \"npm:dev:frontend\"",
+    "dev:server": "nodemon server/server.js",
+    "dev:frontend": "npm --prefix frontend start",
+    "build:frontend": "npm --prefix frontend ci && npm --prefix frontend run build",
+    "test": "npm --prefix frontend test -- --watchAll=false"
+  },
   "dependencies": {
     "cloudinary": "^2.5.1",
+    "cors": "^2.8.5",
+    "dotenv": "^16.4.5",
+    "express": "^4.19.2",
     "firebase-admin": "^12.7.0",
     "formidable": "^3.5.0"
   },
-  "scripts": {
-    "vercel-build": "npm --prefix frontend ci && npm --prefix frontend run build",
-    "build:frontend": "npm --prefix frontend ci && npm --prefix frontend run build",
-    "test": "jest",
-    "test:api": "jest",
-    "test:frontend": "npm --prefix frontend test -- --watchAll=false"
-  },
   "devDependencies": {
-    "jest": "^29.7.0",
-    "node-mocks-http": "^1.11.0"
+    "concurrently": "^9.0.1",
+    "nodemon": "^3.1.7"
   }
 }
