@@ -10,7 +10,7 @@ const PROJECT_ROOT = process.cwd();
 const OUTPUT_FILE = path.join(PROJECT_ROOT, 'output.txt');
 
 // Directories to walk
-const TARGET_DIRS = ['server', 'frontend'];
+const TARGET_DIRS = ['server', 'frontend', 'automation'];
 
 // Safety directory ignores (by basename). Adjust if needed.
 const DIR_BASENAME_IGNORES = new Set([
